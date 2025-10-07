@@ -205,3 +205,84 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Machine Learning / Deep Learning specific
+# Model checkpoints and weights
+*.pth
+*.pt
+*.pkl
+*.pickle
+*.h5
+*.hdf5
+*.ckpt
+*.safetensors
+
+# Training logs and history
+*.history.json
+*.log
+*.out
+*.err
+
+# Results and outputs
+results/
+outputs/
+checkpoints/
+logs/
+runs/
+wandb/
+tensorboard_logs/
+
+# Data files (uncomment if needed)
+# *.csv
+# *.tsv
+# *.json
+# *.jsonl
+# *.parquet
+# *.feather
+
+# Large datasets
+data/
+datasets/
+*.zip
+*.tar.gz
+*.tar.bz2
+*.7z
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# OS specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE specific
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Model artifacts
+artifacts/
+models/
+saved_models/
+
+# Experiment tracking
+mlruns/
+.mlflow/
+
+# Configuration files with secrets
+config.ini
+secrets.json
+.secrets
