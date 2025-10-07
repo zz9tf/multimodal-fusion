@@ -26,13 +26,13 @@ echo ""
 
 # 定义要运行的脚本列表
 scripts=(
-    "/home/zheng/zheng/multimodal-fusion/ablation_study/ablation_mismatch_ratio.sh"
+    # "/home/zheng/zheng/multimodal-fusion/ablation_study/ablation_mismatch_ratio.sh"
     "/home/zheng/zheng/multimodal-fusion/ablation_study/ablation_seed.sh"
-    "/home/zheng/zheng/multimodal-fusion/ablation_study/ablation_lambda1.sh"
+    # "/home/zheng/zheng/multimodal-fusion/ablation_study/ablation_lambda1.sh"
     "/home/zheng/zheng/multimodal-fusion/ablation_study/ablation_lambda2.sh"
-    "/home/zheng/zheng/multimodal-fusion/ablation_study/ablation_tau1.sh"
+    # "/home/zheng/zheng/multimodal-fusion/ablation_study/ablation_tau1.sh"
     "/home/zheng/zheng/multimodal-fusion/ablation_study/ablation_tau2.sh"
-    "/home/zheng/zheng/multimodal-fusion/ablation_study/ablation_num_layers.sh"
+    # "/home/zheng/zheng/multimodal-fusion/ablation_study/ablation_num_layers.sh"
     "/home/zheng/zheng/multimodal-fusion/ablation_study/ablation_loss2_chunk_size.sh"
 )
 

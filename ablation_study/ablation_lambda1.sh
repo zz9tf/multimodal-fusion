@@ -13,15 +13,15 @@ LAMBDA2=0.1
 TAU1=0.1
 TAU2=0.05
 NUM_LAYERS=2
-MAX_STEPS=10000
-BATCH_SIZE=64
+MAX_STEPS=2000
+BATCH_SIZE=512
 LEARNING_RATE=1e-4
 WEIGHT_DECAY=1e-5
-LOG_INTERVAL=200
-VAL_INTERVAL=400
+LOG_INTERVAL=50
+VAL_INTERVAL=100
 
-# 测试10个不同的 lambda1 值
-LAMBDA1_VALUES=(0.0 0.1 0.3 0.5 0.7 1.0 1.5 2.0 3.0 5.0)
+# 测试5个关键的 lambda1 值 (保留极值)
+LAMBDA1_VALUES=(0.0 0.5 1.0 2.0 5.0)
 
 for LAMBDA1 in "${LAMBDA1_VALUES[@]}"
 do
@@ -46,7 +46,8 @@ do
         --save_path /home/zheng/zheng/multimodal-fusion/results/ablation_lambda1/model_lambda1_${LAMBDA1}.pth \
         --num_workers 0 \
         --log_interval ${LOG_INTERVAL} \
-        --val_interval ${VAL_INTERVAL}
+        --val_interval ${VAL_INTERVAL} \
+        --loss2_chunk_size 8
     
     echo ""
     echo "Completed lambda1=${LAMBDA1}"

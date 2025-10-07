@@ -13,15 +13,15 @@ LAMBDA1=1.0
 LAMBDA2=0.1
 TAU1=0.1
 NUM_LAYERS=2
-MAX_STEPS=10000
-BATCH_SIZE=64
+MAX_STEPS=2000
+BATCH_SIZE=512
 LEARNING_RATE=1e-4
 WEIGHT_DECAY=1e-5
-LOG_INTERVAL=200
-VAL_INTERVAL=400
+LOG_INTERVAL=50
+VAL_INTERVAL=100
 
-# 测试10个不同的 tau2 值
-TAU2_VALUES=(0.01 0.02 0.03 0.05 0.07 0.1 0.2 0.5 1 5)
+# 测试5个关键的 tau2 值 (保留极值)
+TAU2_VALUES=(0.01 0.05 0.1 0.2 5)
 
 for TAU2 in "${TAU2_VALUES[@]}"
 do
@@ -29,7 +29,7 @@ do
     echo "Running experiment with tau2=${TAU2}"
     echo "============================================================"
     
-    CUDA_VISIBLE_DEVICES=3 python /home/zheng/zheng/multimodal-fusion/run.py \
+    CUDA_VISIBLE_DEVICES=1 python /home/zheng/zheng/multimodal-fusion/run.py \
         --align_mode intersection \
         --pattern "tma_uni_tile_1024_{marker}.npz" \
         --mismatch_ratio ${MISMATCH_RATIO} \
@@ -46,7 +46,8 @@ do
         --save_path /home/zheng/zheng/multimodal-fusion/results/ablation_tau2/model_tau2_${TAU2}.pth \
         --num_workers 0 \
         --log_interval ${LOG_INTERVAL} \
-        --val_interval ${VAL_INTERVAL}
+        --val_interval ${VAL_INTERVAL} \
+        --loss2_chunk_size 8
     
     echo ""
     echo "Completed tau2=${TAU2}"
