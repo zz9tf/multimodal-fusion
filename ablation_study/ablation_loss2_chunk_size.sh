@@ -21,9 +21,9 @@ WEIGHT_DECAY=1e-5
 LOG_INTERVAL=20
 VAL_INTERVAL=50
 
-# 测试10个不同的 loss2_chunk_size 值
+# 测试5个关键的 loss2_chunk_size 值 (保留极值)
 # None表示不分块，其他值表示分块大小
-LOSS2_CHUNK_SIZE_VALUES=(2 4 8 16 32 64 128 256 512 1024)
+LOSS2_CHUNK_SIZE_VALUES=(8 32 64 256 1024)
 
 for CHUNK_SIZE in "${LOSS2_CHUNK_SIZE_VALUES[@]}"
 do
@@ -38,7 +38,7 @@ do
         CHUNK_SIZE_ARG="--loss2_chunk_size ${CHUNK_SIZE}"
     fi
     
-    CUDA_VISIBLE_DEVICES=1 python /home/zheng/zheng/multimodal-fusion/run.py \
+    CUDA_VISIBLE_DEVICES=3 python /home/zheng/zheng/multimodal-fusion/run.py \
         --align_mode intersection \
         --pattern "tma_uni_tile_1024_{marker}.npz" \
         --mismatch_ratio ${MISMATCH_RATIO} \

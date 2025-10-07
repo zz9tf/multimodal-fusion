@@ -20,8 +20,8 @@ WEIGHT_DECAY=1e-5
 LOG_INTERVAL=20
 VAL_INTERVAL=50
 
-# 测试10个不同的 mismatch_ratio 值
-MISMATCH_RATIOS=(0.1 0.3 0.5 0.7 1.0 1.5 2.0 3.0 5.0 10.0)
+# 测试5个关键的 mismatch_ratio 值 (保留极值)
+MISMATCH_RATIOS=(0.1 0.5 1.0 2.0 5.0)
 
 for RATIO in "${MISMATCH_RATIOS[@]}"
 do
@@ -46,7 +46,8 @@ do
         --save_path /home/zheng/zheng/multimodal-fusion/results/ablation_mismatch_ratio/model_ratio_${RATIO}.pth \
         --num_workers 0 \
         --log_interval ${LOG_INTERVAL} \
-        --val_interval ${VAL_INTERVAL}
+        --val_interval ${VAL_INTERVAL} \
+        --loss2_chunk_size 8
     
     echo ""
     echo "Completed mismatch_ratio=${RATIO}"

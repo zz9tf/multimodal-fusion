@@ -20,8 +20,8 @@ WEIGHT_DECAY=1e-5
 LOG_INTERVAL=20
 VAL_INTERVAL=50
 
-# 测试10个不同的 seed 值
-SEEDS=(42 123 456 789 1024 2048 3141 5926 8888 9999)
+# 测试5个关键的 seed 值 (保留极值)
+SEEDS=(42 123 456 1024 9999)
 
 for SEED in "${SEEDS[@]}"
 do
@@ -29,7 +29,7 @@ do
     echo "Running experiment with seed=${SEED}"
     echo "============================================================"
     
-    CUDA_VISIBLE_DEVICES=2 python /home/zheng/zheng/multimodal-fusion/run.py \
+    CUDA_VISIBLE_DEVICES=0 python /home/zheng/zheng/multimodal-fusion/run.py \
         --align_mode intersection \
         --pattern "tma_uni_tile_1024_{marker}.npz" \
         --mismatch_ratio ${MISMATCH_RATIO} \
@@ -46,7 +46,8 @@ do
         --save_path /home/zheng/zheng/multimodal-fusion/results/ablation_seed/model_seed_${SEED}.pth \
         --num_workers 0 \
         --log_interval ${LOG_INTERVAL} \
-        --val_interval ${VAL_INTERVAL}
+        --val_interval ${VAL_INTERVAL} \
+        --loss2_chunk_size 8
     
     echo ""
     echo "Completed seed=${SEED}"

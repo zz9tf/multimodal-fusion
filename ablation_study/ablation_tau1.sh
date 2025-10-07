@@ -20,8 +20,8 @@ WEIGHT_DECAY=1e-5
 LOG_INTERVAL=20
 VAL_INTERVAL=50
 
-# 测试10个不同的 tau1 值
-TAU1_VALUES=(0.01 0.05 0.1 0.2 0.3 0.5 1.0 2.0 5.0 10.0)
+# 测试5个关键的 tau1 值 (保留极值)
+TAU1_VALUES=(0.05 0.1 0.2 1 10)
 
 for TAU1 in "${TAU1_VALUES[@]}"
 do
@@ -46,7 +46,8 @@ do
         --save_path /home/zheng/zheng/multimodal-fusion/results/ablation_tau1/model_tau1_${TAU1}.pth \
         --num_workers 0 \
         --log_interval ${LOG_INTERVAL} \
-        --val_interval ${VAL_INTERVAL}
+        --val_interval ${VAL_INTERVAL} \
+        --loss2_chunk_size 8
     
     echo ""
     echo "Completed tau1=${TAU1}"

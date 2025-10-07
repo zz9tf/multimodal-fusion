@@ -20,8 +20,8 @@ WEIGHT_DECAY=1e-5
 LOG_INTERVAL=20
 VAL_INTERVAL=50
 
-# 测试10个不同的 num_layers 值
-NUM_LAYERS_VALUES=(1 2 3 4 5 6 7 8 9 10)
+# 测试5个关键的 num_layers 值 (保留极值)
+NUM_LAYERS_VALUES=(1 2 3 5 10)
 
 for NUM_LAYERS in "${NUM_LAYERS_VALUES[@]}"
 do
@@ -46,7 +46,8 @@ do
         --save_path /home/zheng/zheng/multimodal-fusion/results/ablation_num_layers/model_layers_${NUM_LAYERS}.pth \
         --num_workers 0 \
         --log_interval ${LOG_INTERVAL} \
-        --val_interval ${VAL_INTERVAL}
+        --val_interval ${VAL_INTERVAL} \
+        --loss2_chunk_size 8
     
     echo ""
     echo "Completed num_layers=${NUM_LAYERS}"
