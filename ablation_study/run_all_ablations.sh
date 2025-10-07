@@ -71,6 +71,14 @@ echo "========================================"
 task run "num_layers" "/home/zheng/zheng/multimodal-fusion/ablation_study/ablation_num_layers.sh"
 echo ""
 
+# 8. Loss2 Chunk Size Ablation
+echo "========================================"
+echo "8️⃣  Running Loss2 Chunk Size Ablation"
+echo "========================================"
+task run "loss2_chunk_size" "/home/zheng/zheng/multimodal-fusion/ablation_study/ablation_loss2_chunk_size.sh"
+echo ""
+
+
 echo "========================================"
 echo "🎉 所有 Ablation Studies 完成！"
 echo "========================================"

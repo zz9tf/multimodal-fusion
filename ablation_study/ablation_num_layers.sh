@@ -29,7 +29,7 @@ do
     echo "Running experiment with num_layers=${NUM_LAYERS}"
     echo "============================================================"
     
-    CUDA_VISIBLE_DEVICES=0 python /home/zheng/zheng/multimodal-fusion/run.py \
+    CUDA_VISIBLE_DEVICES=1 python /home/zheng/zheng/multimodal-fusion/run.py \
         --align_mode intersection \
         --pattern "tma_uni_tile_1024_{marker}.npz" \
         --mismatch_ratio ${MISMATCH_RATIO} \
