@@ -13,7 +13,7 @@ LAMBDA1=1.0
 LAMBDA2=0.1
 TAU2=0.05
 NUM_LAYERS=2
-MAX_STEPS=2000
+MAX_STEPS=10000
 BATCH_SIZE=64
 LEARNING_RATE=1e-4
 WEIGHT_DECAY=1e-5
@@ -29,7 +29,7 @@ do
     echo "Running experiment with tau1=${TAU1}"
     echo "============================================================"
     
-    CUDA_VISIBLE_DEVICES=1 python /home/zheng/zheng/multimodal-fusion/run.py \
+    CUDA_VISIBLE_DEVICES=3 python /home/zheng/zheng/multimodal-fusion/run.py \
         --align_mode intersection \
         --pattern "tma_uni_tile_1024_{marker}.npz" \
         --mismatch_ratio ${MISMATCH_RATIO} \
