@@ -49,7 +49,7 @@ class MultiModalAlignmentTrainer:
             device: 训练设备
             learning_rate: 学习率
             weight_decay: 权重衰减
-            loss_type: 损失函数类型，"rank1"
+            loss_type: 损失函数类型，"volume", "rank1"，默认 "rank1"
             tau1: 温度参数
             tau2: 温度参数
             lambda1: 损失函数参数
@@ -87,8 +87,8 @@ class MultiModalAlignmentTrainer:
         else:
             self.timing_stats = None
         
-        if loss_type not in ["rank1"]:
-            raise ValueError(f"不支持的损失类型: {loss_type}，支持的类型: 'rank1'")
+        if loss_type not in ["volume", "rank1"]:
+            raise ValueError(f"不支持的损失类型: {loss_type}，支持的类型: 'volume', 'rank1'")
         self.loss_type = loss_type
         
         alignment_params = []
@@ -131,10 +131,82 @@ class MultiModalAlignmentTrainer:
             loss: 损失值
             svd_values: SVD 特征值 Tensor[num_modalities]，如果不适用则返回 None
         """
-        if self.loss_type == "rank1":
+        if self.loss_type == "volume":
+            return self._compute_volume_loss_with_metrics(aligned_features)
+        elif self.loss_type == "rank1":
             return self._compute_rank1_loss_with_metrics(aligned_features, aligned_negatives)
         else:
             raise ValueError(f"不支持的损失类型: {self.loss_type}")
+        
+    def _volume_computation(self, language, *inputs):
+        """
+        General function to compute volume for contrastive learning loss functions.
+        Compute the volume metric for each vector in language batch and all the other modalities listed in *inputs.
+
+        Args:
+        - language (torch.Tensor): Tensor of shape (batch_size1, dim)
+        - *inputs (torch.Tensor): Variable number of tensors of shape (batch_size2, dim)
+
+        Returns:
+        - torch.Tensor: Tensor of shape (batch_size1, batch_size2) representing the volume for each pair.
+        """
+        batch_size1 = language.shape[0]
+        batch_size2 = inputs[0].shape[0]
+
+        # Compute pairwise dot products for language with itself
+        ll = torch.einsum('bi,bi->b', language, language).unsqueeze(1).expand(-1, batch_size2)
+
+        # Compute pairwise dot products for language with each input
+        l_inputs = [language @ input.T for input in inputs]
+
+        # Compute pairwise dot products for each input with themselves and with each other
+        input_dot_products = []
+        for i, input1 in enumerate(inputs):
+            row = []
+            for j, input2 in enumerate(inputs):
+                dot_product = torch.einsum('bi,bi->b', input1, input2).unsqueeze(0).expand(batch_size1, -1)
+                row.append(dot_product)
+            input_dot_products.append(row)
+
+        # Stack the results to form the Gram matrix for each pair
+        G = torch.stack([
+            torch.stack([ll] + l_inputs, dim=-1),
+            *[torch.stack([l_inputs[i]] + input_dot_products[i], dim=-1) for i in range(len(inputs))]
+        ], dim=-2)
+        
+        evals = torch.linalg.eigvalsh(G.to(torch.float64))        # [B1,B2,K], 升序
+        evals = evals.clamp_min(0.0).to(G.dtype)
+
+        # Compute the determinant for each Gram matrix
+        gram_det = torch.det(G.float())
+
+        # Compute the square root of the absolute value of the determinants
+        res = torch.sqrt(torch.abs(gram_det))
+        return res, evals
+    
+    def _compute_volume_loss_with_metrics(self, aligned_features: dict):
+        """
+        aligned_features: dict[str, Tensor]，每个 Tensor 形状 [B, D]，索引 i 处各模态一一对应
+        返回: vol: [B]（每个样本一个 体积 或 log-体积）, svd_values: [K]
+        """
+        feature_list = list(aligned_features.values())
+        volume, evals = self._volume_computation(feature_list[0], *feature_list[1:])
+        # 2) 温度缩放并取负号作为 logits（越小越好交给 CE）
+        logits_ab = - volume / self.tau1                        # anchor->others
+        logits_ba = - volume.t() / self.tau1                    # others->anchor
+
+        # 3) 目标指定对角
+        B = volume.size(0)
+        targets = torch.arange(B, device=volume.device)
+
+        # 4) 交叉熵（可带 label_smoothing）
+        loss = (F.cross_entropy(logits_ab, targets, label_smoothing=0.1) \
+            + F.cross_entropy(logits_ba, targets, label_smoothing=0.1)) / 2
+        loss = loss.mean()
+        
+        # 将特征值从 [B1, B2, K] 按批维聚合为 [K] 并按降序排序（用于日志展示）
+        svd_values, _ = torch.sort(evals.mean(dim=(0, 1)).detach(), descending=True)
+        return loss, svd_values
     
     def _compute_rank1_loss_with_metrics(self, aligned_features: Dict[str, torch.Tensor], 
                                           aligned_negatives: Optional[Dict[str, torch.Tensor]] = None):

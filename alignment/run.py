@@ -65,6 +65,7 @@ def main():
     parser.add_argument("--num_layers", type=int, default=1, 
                        help="对齐层的层数，默认为1（单层线性变换）")
     parser.add_argument("--val_max_batches", type=int, default=None, help="验证最多批次数")
+    parser.add_argument("--loss_type", type=str, default="volume", help="损失类型 volume, rank1")
     parser.add_argument("--loss2_chunk_size", type=int, default=None, help="loss2 分块大小（行块尺寸）")
     parser.add_argument("--verbose_timing", action="store_true", help="启用详细性能分析（默认关闭）")
     
@@ -88,6 +89,7 @@ def main():
         device=device,
         learning_rate=args.learning_rate,
         weight_decay=args.weight_decay,
+        loss_type=args.loss_type,
         val_max_batches=args.val_max_batches,
         loss2_chunk_size=args.loss2_chunk_size,
         verbose_timing=args.verbose_timing,
@@ -200,6 +202,7 @@ def main():
             'align_mode': args.align_mode,
             'seed': args.seed,
             'num_layers': args.num_layers,
+            'loss_type': args.loss_type,
         }
     }
     

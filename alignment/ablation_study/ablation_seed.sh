@@ -1,6 +1,6 @@
 #!/bin/bash
-# Ablation Study: lambda2
-# 测试匹配预测损失权重 lambda2 对模型性能的影响
+# Ablation Study: seed
+# 测试不同随机种子对模型性能的影响（评估模型稳定性）
 
 # Initialize conda
 eval "$(conda shell.bash hook)"
@@ -8,8 +8,8 @@ conda activate multimodal-fusion
 
 # 固定其他参数（统一配置）
 MISMATCH_RATIO=1.0
-SEED=42
 LAMBDA1=1.0
+LAMBDA2=0.1
 TAU1=0.1
 TAU2=0.05
 NUM_LAYERS=2
@@ -20,17 +20,17 @@ WEIGHT_DECAY=1e-5
 LOG_INTERVAL=20
 VAL_INTERVAL=50
 
-# 测试5个关键的 lambda2 值 (保留极值)
-LAMBDA2_VALUES=(0.0 0.05 0.1 0.2 0.5)
+# 测试5个关键的 seed 值 (保留极值)
+SEEDS=(42 123 456 1024 9999)
 
-for LAMBDA2 in "${LAMBDA2_VALUES[@]}"
+for SEED in "${SEEDS[@]}"
 do
     echo "============================================================"
-    echo "Running experiment with lambda2=${LAMBDA2}"
+    echo "Running experiment with seed=${SEED}"
     echo "============================================================"
     
-    CUDA_VISIBLE_DEVICES=1 python /home/zheng/zheng/multimodal-fusion/run.py \
-        --align_mode intersection \
+    CUDA_VISIBLE_DEVICES=0 python /home/zheng/zheng/multimodal-fusion/alignment/run.py \
+        --align_mode intersection \ 
         --pattern "tma_uni_tile_1024_{marker}.npz" \
         --mismatch_ratio ${MISMATCH_RATIO} \
         --seed ${SEED} \
@@ -43,16 +43,16 @@ do
         --weight_decay ${WEIGHT_DECAY} \
         --max_steps ${MAX_STEPS} \
         --batch_size ${BATCH_SIZE} \
-        --save_path /home/zheng/zheng/multimodal-fusion/results/ablation_lambda2/model_lambda2_${LAMBDA2}.pth \
+        --save_path /home/zheng/zheng/multimodal-fusion/alignment/results/ablation_seed/model_seed_${SEED}.pth \
         --num_workers 0 \
         --log_interval ${LOG_INTERVAL} \
         --val_interval ${VAL_INTERVAL} \
         --loss2_chunk_size 8
     
     echo ""
-    echo "Completed lambda2=${LAMBDA2}"
+    echo "Completed seed=${SEED}"
     echo ""
 done
 
-echo "✅ Ablation study for lambda2 completed!"
+echo "✅ Ablation study for seed completed!"
 

@@ -1,6 +1,6 @@
 #!/bin/bash
-# Ablation Study: tau2
-# 测试温度参数 tau2 对模型性能的影响
+# Ablation Study: loss2_chunk_size
+# 测试loss2分块大小对模型性能和训练效率的影响
 
 # Initialize conda
 eval "$(conda shell.bash hook)"
@@ -12,6 +12,7 @@ SEED=42
 LAMBDA1=1.0
 LAMBDA2=0.1
 TAU1=0.1
+TAU2=0.05
 NUM_LAYERS=2
 MAX_STEPS=400
 BATCH_SIZE=512
@@ -20,16 +21,24 @@ WEIGHT_DECAY=1e-5
 LOG_INTERVAL=20
 VAL_INTERVAL=50
 
-# 测试5个关键的 tau2 值 (保留极值)
-TAU2_VALUES=(0.01 0.05 0.1 0.2 5)
+# 测试5个关键的 loss2_chunk_size 值 (保留极值)
+# None表示不分块，其他值表示分块大小
+LOSS2_CHUNK_SIZE_VALUES=(8 32 64 256 1024)
 
-for TAU2 in "${TAU2_VALUES[@]}"
+for CHUNK_SIZE in "${LOSS2_CHUNK_SIZE_VALUES[@]}"
 do
     echo "============================================================"
-    echo "Running experiment with tau2=${TAU2}"
+    echo "Running experiment with loss2_chunk_size=${CHUNK_SIZE}"
     echo "============================================================"
     
-    CUDA_VISIBLE_DEVICES=2 python /home/zheng/zheng/multimodal-fusion/run.py \
+    # 构建命令参数
+    if [ "${CHUNK_SIZE}" = "None" ]; then
+        CHUNK_SIZE_ARG=""
+    else
+        CHUNK_SIZE_ARG="--loss2_chunk_size ${CHUNK_SIZE}"
+    fi
+    
+    CUDA_VISIBLE_DEVICES=3 python /home/zheng/zheng/multimodal-fusion/alignment/run.py \
         --align_mode intersection \
         --pattern "tma_uni_tile_1024_{marker}.npz" \
         --mismatch_ratio ${MISMATCH_RATIO} \
@@ -43,16 +52,16 @@ do
         --weight_decay ${WEIGHT_DECAY} \
         --max_steps ${MAX_STEPS} \
         --batch_size ${BATCH_SIZE} \
-        --save_path /home/zheng/zheng/multimodal-fusion/results/ablation_tau2/model_tau2_${TAU2}.pth \
+        --save_path /home/zheng/zheng/multimodal-fusion/alignment/results/ablation_loss2_chunk_size/model_loss2_chunk_size_${CHUNK_SIZE}.pth \
         --num_workers 0 \
         --log_interval ${LOG_INTERVAL} \
         --val_interval ${VAL_INTERVAL} \
-        --loss2_chunk_size 8
+        ${CHUNK_SIZE_ARG}
     
     echo ""
-    echo "Completed tau2=${TAU2}"
+    echo "Completed loss2_chunk_size=${CHUNK_SIZE}"
     echo ""
 done
 
-echo "✅ Ablation study for tau2 completed!"
+echo "✅ Ablation study for loss2_chunk_size completed!"
 

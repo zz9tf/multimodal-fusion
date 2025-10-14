@@ -1,6 +1,6 @@
 #!/bin/bash
-# Ablation Study: loss2_chunk_size
-# 测试loss2分块大小对模型性能和训练效率的影响
+# Ablation Study: num_layers
+# 测试不同对齐层数对模型性能的影响
 
 # Initialize conda
 eval "$(conda shell.bash hook)"
@@ -13,7 +13,6 @@ LAMBDA1=1.0
 LAMBDA2=0.1
 TAU1=0.1
 TAU2=0.05
-NUM_LAYERS=2
 MAX_STEPS=400
 BATCH_SIZE=512
 LEARNING_RATE=1e-4
@@ -21,24 +20,16 @@ WEIGHT_DECAY=1e-5
 LOG_INTERVAL=20
 VAL_INTERVAL=50
 
-# 测试5个关键的 loss2_chunk_size 值 (保留极值)
-# None表示不分块，其他值表示分块大小
-LOSS2_CHUNK_SIZE_VALUES=(8 32 64 256 1024)
+# 测试5个关键的 num_layers 值 (保留极值)
+NUM_LAYERS_VALUES=(1 2 3 5 10)
 
-for CHUNK_SIZE in "${LOSS2_CHUNK_SIZE_VALUES[@]}"
+for NUM_LAYERS in "${NUM_LAYERS_VALUES[@]}"
 do
     echo "============================================================"
-    echo "Running experiment with loss2_chunk_size=${CHUNK_SIZE}"
+    echo "Running experiment with num_layers=${NUM_LAYERS}"
     echo "============================================================"
     
-    # 构建命令参数
-    if [ "${CHUNK_SIZE}" = "None" ]; then
-        CHUNK_SIZE_ARG=""
-    else
-        CHUNK_SIZE_ARG="--loss2_chunk_size ${CHUNK_SIZE}"
-    fi
-    
-    CUDA_VISIBLE_DEVICES=3 python /home/zheng/zheng/multimodal-fusion/run.py \
+    CUDA_VISIBLE_DEVICES=2 python /home/zheng/zheng/multimodal-fusion/alignment/run.py \
         --align_mode intersection \
         --pattern "tma_uni_tile_1024_{marker}.npz" \
         --mismatch_ratio ${MISMATCH_RATIO} \
@@ -52,16 +43,16 @@ do
         --weight_decay ${WEIGHT_DECAY} \
         --max_steps ${MAX_STEPS} \
         --batch_size ${BATCH_SIZE} \
-        --save_path /home/zheng/zheng/multimodal-fusion/results/ablation_loss2_chunk_size/model_loss2_chunk_size_${CHUNK_SIZE}.pth \
+        --save_path /home/zheng/zheng/multimodal-fusion/alignment/results/ablation_num_layers/model_layers_${NUM_LAYERS}.pth \
         --num_workers 0 \
         --log_interval ${LOG_INTERVAL} \
         --val_interval ${VAL_INTERVAL} \
-        ${CHUNK_SIZE_ARG}
+        --loss2_chunk_size 8
     
     echo ""
-    echo "Completed loss2_chunk_size=${CHUNK_SIZE}"
+    echo "Completed num_layers=${NUM_LAYERS}"
     echo ""
 done
 
-echo "✅ Ablation study for loss2_chunk_size completed!"
+echo "✅ Ablation study for num_layers completed!"
 

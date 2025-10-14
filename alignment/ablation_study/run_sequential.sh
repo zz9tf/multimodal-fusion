@@ -13,27 +13,27 @@ echo ""
 
 # 创建结果目录
 echo "📁 创建结果目录..."
-mkdir -p /home/zheng/zheng/multimodal-fusion/results/ablation_mismatch_ratio
-mkdir -p /home/zheng/zheng/multimodal-fusion/results/ablation_seed
-mkdir -p /home/zheng/zheng/multimodal-fusion/results/ablation_lambda1
-mkdir -p /home/zheng/zheng/multimodal-fusion/results/ablation_lambda2
-mkdir -p /home/zheng/zheng/multimodal-fusion/results/ablation_tau1
-mkdir -p /home/zheng/zheng/multimodal-fusion/results/ablation_tau2
-mkdir -p /home/zheng/zheng/multimodal-fusion/results/ablation_num_layers
-mkdir -p /home/zheng/zheng/multimodal-fusion/results/ablation_loss2_chunk_size
+mkdir -p /home/zheng/zheng/multimodal-fusion/alignment/results/ablation_mismatch_ratio
+mkdir -p /home/zheng/zheng/multimodal-fusion/alignment/results/ablation_seed
+mkdir -p /home/zheng/zheng/multimodal-fusion/alignment/results/ablation_lambda1
+mkdir -p /home/zheng/zheng/multimodal-fusion/alignment/results/ablation_lambda2
+mkdir -p /home/zheng/zheng/multimodal-fusion/alignment/results/ablation_tau1
+mkdir -p /home/zheng/zheng/multimodal-fusion/alignment/results/ablation_tau2
+mkdir -p /home/zheng/zheng/multimodal-fusion/alignment/results/ablation_num_layers
+mkdir -p /home/zheng/zheng/multimodal-fusion/alignment/results/ablation_loss2_chunk_size
 echo "✅ 目录创建完成"
 echo ""
 
 # 定义要运行的脚本列表
 scripts=(
-    # "/home/zheng/zheng/multimodal-fusion/ablation_study/ablation_mismatch_ratio.sh"
-    "/home/zheng/zheng/multimodal-fusion/ablation_study/ablation_seed.sh"
-    # "/home/zheng/zheng/multimodal-fusion/ablation_study/ablation_lambda1.sh"
-    "/home/zheng/zheng/multimodal-fusion/ablation_study/ablation_lambda2.sh"
-    # "/home/zheng/zheng/multimodal-fusion/ablation_study/ablation_tau1.sh"
-    "/home/zheng/zheng/multimodal-fusion/ablation_study/ablation_tau2.sh"
-    # "/home/zheng/zheng/multimodal-fusion/ablation_study/ablation_num_layers.sh"
-    "/home/zheng/zheng/multimodal-fusion/ablation_study/ablation_loss2_chunk_size.sh"
+    # "/home/zheng/zheng/multimodal-fusion/alignment/ablation_study/ablation_mismatch_ratio.sh"
+    "/home/zheng/zheng/multimodal-fusion/alignment/ablation_study/ablation_seed.sh"
+    # "/home/zheng/zheng/multimodal-fusion/alignment/ablation_study/ablation_lambda1.sh"
+    "/home/zheng/zheng/multimodal-fusion/alignment/ablation_study/ablation_lambda2.sh"
+    # "/home/zheng/zheng/multimodal-fusion/alignment/ablation_study/ablation_tau1.sh"
+    "/home/zheng/zheng/multimodal-fusion/alignment/ablation_study/ablation_tau2.sh"
+    # "/home/zheng/zheng/multimodal-fusion/alignment/ablation_study/ablation_num_layers.sh"
+    "/home/zheng/zheng/multimodal-fusion/alignment/ablation_study/ablation_loss2_chunk_size.sh"
 )
 
 # 串行执行每个脚本
@@ -85,6 +85,6 @@ echo "========================================"
 echo "🎉 所有消融实验完成！"
 echo "========================================"
 echo "📊 结果保存在："
-echo "   - /home/zheng/zheng/multimodal-fusion/results/ablation_*/"
+echo "   - /home/zheng/zheng/multimodal-fusion/alignment/results/ablation_*/"
 echo ""
 echo "⏰ 总完成时间: $(date)"

@@ -51,7 +51,7 @@ echo ""
 
 # 直接运行Python脚本
 CUDA_VISIBLE_DEVICES=$PHYSICAL_GPU PYTHONPATH=/home/zheng/zheng/multimodal-fusion python \
-  /home/zheng/zheng/multimodal-fusion/tma_feature_extraction/extract_tma_features_uni.py \
+  /home/zheng/zheng/multimodal-fusion/alignment/tma_feature_extraction/extract_tma_features_uni.py \
   "$INPUT_DIR" \
   "$OUTPUT_DIR" \
   --device cuda \

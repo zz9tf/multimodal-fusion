@@ -29,7 +29,7 @@ do
     echo "Running experiment with tau1=${TAU1}"
     echo "============================================================"
     
-    CUDA_VISIBLE_DEVICES=3 python /home/zheng/zheng/multimodal-fusion/run.py \
+    CUDA_VISIBLE_DEVICES=3 python /home/zheng/zheng/multimodal-fusion/alignment/run.py \
         --align_mode intersection \
         --pattern "tma_uni_tile_1024_{marker}.npz" \
         --mismatch_ratio ${MISMATCH_RATIO} \
@@ -43,7 +43,7 @@ do
         --weight_decay ${WEIGHT_DECAY} \
         --max_steps ${MAX_STEPS} \
         --batch_size ${BATCH_SIZE} \
-        --save_path /home/zheng/zheng/multimodal-fusion/results/ablation_tau1/model_tau1_${TAU1}.pth \
+        --save_path /home/zheng/zheng/multimodal-fusion/alignment/results/ablation_tau1/model_tau1_${TAU1}.pth \
         --num_workers 0 \
         --log_interval ${LOG_INTERVAL} \
         --val_interval ${VAL_INTERVAL} \
