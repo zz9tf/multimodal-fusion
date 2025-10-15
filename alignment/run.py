@@ -68,6 +68,8 @@ def main():
     parser.add_argument("--loss_type", type=str, default="volume", help="损失类型 volume, rank1")
     parser.add_argument("--loss2_chunk_size", type=int, default=None, help="loss2 分块大小（行块尺寸）")
     parser.add_argument("--verbose_timing", action="store_true", help="启用详细性能分析（默认关闭）")
+    parser.add_argument("--early_stopping_patience", type=int, default=10, help="Early stopping耐心值（验证loss不改善的步数，0表示禁用）")
+    parser.add_argument("--early_stopping_min_delta", type=float, default=1e-4, help="Early stopping最小改善阈值")
     
     args = parser.parse_args()
     
@@ -93,6 +95,8 @@ def main():
         val_max_batches=args.val_max_batches,
         loss2_chunk_size=args.loss2_chunk_size,
         verbose_timing=args.verbose_timing,
+        early_stopping_patience=args.early_stopping_patience,
+        early_stopping_min_delta=args.early_stopping_min_delta,
     )
     
     # 创建带负样本池的数据集

@@ -40,7 +40,9 @@ class MultiModalAlignmentTrainer:
                  modality_names_for_mismatch: Optional[List[str]] = None,
                  val_max_batches: Optional[int] = None,
                  loss2_chunk_size: Optional[int] = None,
-                 verbose_timing: bool = False):
+                 verbose_timing: bool = False,
+                 early_stopping_patience: int = 10,
+                 early_stopping_min_delta: float = 1e-4):
         """
         初始化训练器
         
@@ -56,6 +58,11 @@ class MultiModalAlignmentTrainer:
             lambda2: 损失函数参数
             mismatch_ratio: mismatch与match的比例，1.0表示1:1，2.0表示2:1
             modality_names_for_mismatch: 可选，指定用于mismatch的模态名称，默认使用 model.modality_names
+            val_max_batches: 验证时最大批次数
+            loss2_chunk_size: loss2分块大小
+            verbose_timing: 是否启用详细性能分析
+            early_stopping_patience: early stopping的耐心值（验证loss不改善的步数）
+            early_stopping_min_delta: early stopping的最小改善阈值
         """
         self.model = model.to(device)
         self.device = device
@@ -70,6 +77,13 @@ class MultiModalAlignmentTrainer:
         self.val_max_batches = val_max_batches
         self.loss2_chunk_size = loss2_chunk_size
         self.verbose_timing = verbose_timing
+        self.early_stopping_patience = early_stopping_patience
+        self.early_stopping_min_delta = early_stopping_min_delta
+        
+        # Early stopping 相关状态
+        self.best_val_loss = float('inf')
+        self.early_stopping_counter = 0
+        self.early_stopping_triggered = False
         
         # 性能分析相关（仅在verbose_timing=True时启用）
         if self.verbose_timing:
@@ -121,6 +135,8 @@ class MultiModalAlignmentTrainer:
             logger.info(f"   - loss2 分块大小: {self.loss2_chunk_size}")
         if self.verbose_timing:
             logger.info(f"   - 详细性能分析: 启用")
+        if self.early_stopping_patience > 0:
+            logger.info(f"   - Early Stopping: 启用 (patience={self.early_stopping_patience}, min_delta={self.early_stopping_min_delta})")
     
     def _compute_loss_with_metrics(self, aligned_features: Dict[str, torch.Tensor], 
                                     aligned_negatives: Optional[Dict[str, torch.Tensor]] = None):
@@ -357,6 +373,39 @@ class MultiModalAlignmentTrainer:
             'val_loss': val_loss,
         }, save_path)
         logger.info(f"✅ [Step {step}] 保存最佳模型 (val_loss: {val_loss:.4f})")
+    
+    def _check_early_stopping(self, val_loss: float) -> bool:
+        """
+        检查是否应该early stopping
+        
+        Args:
+            val_loss: 当前验证损失
+            
+        Returns:
+            bool: True表示应该early stopping，False表示继续训练
+        """
+        if self.early_stopping_patience <= 0:
+            return False
+        
+        # 检查是否有改善
+        if val_loss < self.best_val_loss - self.early_stopping_min_delta:
+            # 有改善，重置计数器
+            self.best_val_loss = val_loss
+            self.early_stopping_counter = 0
+            logger.info(f"🎯 [Early Stop] 验证损失改善: {val_loss:.4f} (最佳: {self.best_val_loss:.4f})")
+            return False
+        else:
+            # 没有改善，增加计数器
+            self.early_stopping_counter += 1
+            logger.info(f"⏳ [Early Stop] 验证损失无改善: {val_loss:.4f} (最佳: {self.best_val_loss:.4f}, 计数: {self.early_stopping_counter}/{self.early_stopping_patience})")
+            
+            # 检查是否达到patience
+            if self.early_stopping_counter >= self.early_stopping_patience:
+                self.early_stopping_triggered = True
+                logger.info(f"🛑 [Early Stop] 触发早停！验证损失连续 {self.early_stopping_patience} 次验证无改善")
+                return True
+        
+        return False
     
     def _log_progress(self, global_step: int, max_steps: int, log_interval: int, history: Dict):
         """打印训练进度日志"""
@@ -665,7 +714,11 @@ class MultiModalAlignmentTrainer:
         Example:
             trainer.train(train_loader, val_loader, max_steps=100000, log_interval=1000, val_interval=5000)
         """
-        best_val_loss = float('inf')
+        # 重置early stopping状态
+        self.best_val_loss = float('inf')
+        self.early_stopping_counter = 0
+        self.early_stopping_triggered = False
+        
         history = {
             'train_losses': [],        # 每个 step 的 loss
             'train_svd_values': [],    # 每个 step 的 SVD 值
@@ -712,9 +765,13 @@ class MultiModalAlignmentTrainer:
                     history['val_svd_values'].append(val_svd)
                 
                 # 保存最佳模型
-                if val_loss < best_val_loss:
-                    best_val_loss = val_loss
+                if val_loss < self.best_val_loss:
                     self._save_checkpoint(save_path, global_step, val_loss)
+                
+                # 检查early stopping
+                if self._check_early_stopping(val_loss):
+                    logger.info(f"🛑 [Step {global_step}] Early stopping触发，训练提前结束")
+                    break
             
             # 📝 定期日志输出
             if global_step % log_interval == 0:
@@ -722,22 +779,23 @@ class MultiModalAlignmentTrainer:
         
         progress_bar.close()
         
-        # 训练结束后执行一次完整验证（不限制批次数）
-        # if val_loader is not None:
-        #     logger.info("🔁 训练结束，开始执行完整验证（Full Validation）...")
-        #     final_val_loss, final_val_svd = self._run_validation(val_loader, None)
-        #     history['val_losses'].append(final_val_loss)
-        #     history['val_steps'].append(global_step)
-        #     if final_val_svd is not None:
-        #         history['val_svd_values'].append(final_val_svd)
-        #     logger.info(f"✅ 完整验证完成 | Val: {final_val_loss:.4f}")
+        # 训练结束后的总结
+        if self.early_stopping_triggered:
+            logger.info("=" * 80)
+            logger.info("🛑 训练因Early Stopping提前结束")
+            logger.info(f"   - 最佳验证损失: {self.best_val_loss:.4f}")
+            logger.info(f"   - 总训练步数: {global_step}/{max_steps}")
+            logger.info(f"   - 节省步数: {max_steps - global_step}")
+            logger.info("=" * 80)
+        else:
+            logger.info("=" * 80)
+            logger.info("✅ 训练正常完成！")
+            logger.info(f"   - 最佳验证损失: {self.best_val_loss:.4f}")
+            logger.info(f"   - 总训练步数: {global_step}/{max_steps}")
+            logger.info("=" * 80)
 
         # 打印性能分析报告（仅在启用时）
         if self.verbose_timing:
             self.print_timing_analysis()
-        
-        logger.info("=" * 80)
-        logger.info("✅ 训练完成！")
-        logger.info("=" * 80)
         
         return history
