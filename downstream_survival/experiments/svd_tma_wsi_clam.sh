@@ -7,7 +7,7 @@ source ~/zheng/miniconda3/etc/profile.d/conda.sh
 conda activate multimodal-fusion
 cd /home/zheng/zheng/multimodal-fusion/downstream_survival
 
-CUDA_DEVICE=2
+CUDA_DEVICE=0
 export CUDA_VISIBLE_DEVICES="$CUDA_DEVICE"
 
 # 数据相关参数
@@ -15,11 +15,11 @@ DATA_ROOT_DIR="/home/zheng/zheng/public/hancock_data/WSI_UNI_encodings/WSI_Prima
 RESULTS_DIR="/home/zheng/zheng/multimodal-fusion/downstream_survival/results"
 CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv"
 ALIGNMENT_MODEL_PATH="/home/zheng/zheng/multimodal-fusion/alignment/results/test_svd/test_multimodal_alignment_model.pth"
-TARGET_CHANNELS="features tma_CD3 tma_CD8 tma_CD56 tma_CD68 tma_CD163 tma_HE tma_MHC1 tma_PDL1"
 ALIGNED_CHANNELS="tma_CD3=CD3 tma_CD8=CD8 tma_CD56=CD56 tma_CD68=CD68 tma_CD163=CD163 tma_HE=HE tma_MHC1=MHC1 tma_PDL1=PDL1"
+TARGET_CHANNELS="features tma_CD3 tma_CD8 tma_CD56 tma_CD68 tma_CD163 tma_HE tma_MHC1 tma_PDL1"
 
 # 实验 & 训练参数
-EXP_CODE="svd_align_plus_not_align_in_tma_wsi"
+EXP_CODE="svd_tma_wsi_clam"
 SEED=5678
 K_FOLDS=10
 MAX_EPOCHS=200
@@ -43,15 +43,15 @@ INST_LOSS_FN="ce"
 MODEL_SIZE="64*32"
 SUBTYPING="--subtyping"
 INST_NUMBER=8
-CHANNELS_USED_IN_MODEL="features tma_CD3 tma_CD8 tma_CD56 tma_CD68 tma_CD163 tma_HE tma_MHC1 tma_PDL1 aligned_tma_CD3 aligned_tma_CD8 aligned_tma_CD56 aligned_tma_CD68 aligned_tma_CD163 aligned_tma_HE aligned_tma_MHC1 aligned_tma_PDL1"
+CHANNELS_USED_IN_MODEL="features aligned_tma_CD3 aligned_tma_CD8 aligned_tma_CD56 aligned_tma_CD68 aligned_tma_CD163 aligned_tma_HE aligned_tma_MHC1 aligned_tma_PDL1"
 
 # 运行训练
 python main.py \
     --data_root_dir "$DATA_ROOT_DIR" \
     --results_dir "$RESULTS_DIR" \
     --csv_path "$CSV_PATH" \
-    --alignment_model_path "$ALIGNMENT_MODEL_PATH" \
     --target_channel $TARGET_CHANNELS \
+    --alignment_model_path "$ALIGNMENT_MODEL_PATH" \
     --aligned_channels $ALIGNED_CHANNELS \
     --exp_code "$EXP_CODE" \
     --seed $SEED \

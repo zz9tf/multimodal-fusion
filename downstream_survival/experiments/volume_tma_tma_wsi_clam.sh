@@ -19,7 +19,7 @@ TARGET_CHANNELS="features tma_CD3 tma_CD8 tma_CD56 tma_CD68 tma_CD163 tma_HE tma
 ALIGNED_CHANNELS="tma_CD3=CD3 tma_CD8=CD8 tma_CD56=CD56 tma_CD68=CD68 tma_CD163=CD163 tma_HE=HE tma_MHC1=MHC1 tma_PDL1=PDL1"
 
 # 实验 & 训练参数
-EXP_CODE="clam_svd_tma_wsi_align"
+EXP_CODE="volume_tma_tma_wsi_clam" # volume alignment tma & normal tma & wsi with clam model
 SEED=5678
 K_FOLDS=10
 MAX_EPOCHS=200
@@ -43,15 +43,7 @@ INST_LOSS_FN="ce"
 MODEL_SIZE="64*32"
 SUBTYPING="--subtyping"
 INST_NUMBER=8
-CHANNELS_USED_IN_MODEL="features aligned_tma_CD3 aligned_tma_CD8 aligned_tma_CD56 aligned_tma_CD68 aligned_tma_CD163 aligned_tma_HE aligned_tma_MHC1 aligned_tma_PDL1"
-
-
-# CLAM_SVD_LOSS特定参数
-LAMBDA1=1.0
-LAMBDA2=0
-TAU1=0.1
-TAU2=0.05
-ALIGNMENT_LAYER_NUM=2
+CHANNELS_USED_IN_MODEL="features tma_CD3 tma_CD8 tma_CD56 tma_CD68 tma_CD163 tma_HE tma_MHC1 tma_PDL1 aligned_tma_CD3 aligned_tma_CD8 aligned_tma_CD56 aligned_tma_CD68 aligned_tma_CD163 aligned_tma_HE aligned_tma_MHC1 aligned_tma_PDL1"
 
 # 运行训练
 python main.py \
