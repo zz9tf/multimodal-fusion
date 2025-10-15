@@ -20,7 +20,7 @@ CUDA_VISIBLE_DEVICES=1 python /home/zheng/zheng/multimodal-fusion/alignment/run.
     --learning_rate 1e-4 \
     --weight_decay 1e-5 \
     --max_steps 2000 \
-    --batch_size 16384 \
+    --batch_size 8192 \
     --loss_type rank1 \
     --save_path /home/zheng/zheng/multimodal-fusion/alignment/results/rank1_detailed_tma_multimodal_alignment_model.pth \
     --num_workers 0 \
