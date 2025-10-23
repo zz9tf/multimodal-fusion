@@ -118,6 +118,15 @@ def _get_model_specific_config(args):
             'channels_used_in_model': args.channels_used_in_model,
             'auc_loss_weight': args.auc_loss_weight,
         }
+    elif model_type == 'gate_mil_detach':
+        return {
+            'model_size': args.model_size,
+            'channels_used_in_model': args.channels_used_in_model,
+            'return_features': args.return_features,
+            'confidence_weight': args.confidence_weight,
+            'feature_weight_weight': args.feature_weight_weight,
+            'channels_used_in_model': args.channels_used_in_model,
+        }
     else:
         # 为其他模型类型返回空配置，可以根据需要扩展
         return {}
@@ -394,7 +403,7 @@ parser.add_argument('--batch_size', type=int, default=1,
                     help='批次大小 (default: 1)')
 
 # 模型相关参数
-parser.add_argument('--model_type', type=str, choices=['clam', 'auc_clam', 'mil', 'clam_svd_loss', 'gate_shared_mil', 'gate_mil', 'gate_auc_mil'], 
+parser.add_argument('--model_type', type=str, choices=['clam', 'auc_clam', 'clam_svd_loss', 'mil', 'gate_shared_mil', 'gate_mil', 'gate_auc_mil', 'gate_mil_detach'], 
                     default='clam', help='模型类型 (default: clam)')
 parser.add_argument('--input_dim', type=int, default=1024,
                     help='输入维度')

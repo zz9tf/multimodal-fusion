@@ -11,6 +11,7 @@ from .clam_svd_loss import CLAM_SVD_LOSS
 from .gate_shared_mil import GateSharedMIL
 from .gate_mil import GateMIL
 from .gate_auc_mil import GateAUCMIL
+from .gate_mil_detach import GateMILDetach
 from .base_model import BaseModel
 from typing import Dict, Any, Type
 
@@ -30,7 +31,8 @@ class ModelFactory:
         'clam_svd_loss': CLAM_SVD_LOSS,
         'gate_shared_mil': GateSharedMIL,
         'gate_mil': GateMIL,
-        'gate_auc_mil': GateAUCMIL
+        'gate_auc_mil': GateAUCMIL,
+        'gate_mil_detach': GateMILDetach
     }
     
     @staticmethod

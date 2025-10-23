@@ -842,14 +842,14 @@ class Trainer:
             logger.batch_log['loss'] += results['auc_loss']
         
         test_loss = logger.batch_log['loss']/len(loader)
-        print('\nTest Set, test_loss: {:.4f}, test_accuracy: {:.4f}, auc: {:.4f}'.format(test_loss, test_acc, auc))
+        test_acc = logger.get_overall_accuracy()
+        
         if hasattr(model, 'verbose_items'):
             results['is_epoch'] = True
             items = model.verbose_items(results)
             if len(items) > 0:
                 print('- ' + ' '.join([f'{key}: {value:.4f}' for key, value in items]))
-
-        test_acc = logger.get_overall_accuracy()
+        
         labels = torch.cat(logger.batch_log['labels'], dim=0)
         prob = torch.cat(logger.batch_log['probs'], dim=0)
 
@@ -859,5 +859,7 @@ class Trainer:
         else:
             auroc = TM_AUROC(task='multiclass', num_classes=self.model_config['n_classes'], average='macro').to(prob.device)
             auc = float(auroc(prob, labels.long()).item())
+        
+        print('\nTest Set, test_loss: {:.4f}, test_accuracy: {:.4f}, auc: {:.4f}'.format(test_loss, test_acc, auc))
 
         return patient_results, test_acc, auc, logger
