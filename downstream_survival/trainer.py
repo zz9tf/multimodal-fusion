@@ -645,8 +645,9 @@ class Trainer:
             
             if (batch_idx + 1) % batch_size == 0:
                 # 反向传播
-                results['auc_loss'] = model.group_loss_fn(results)
-                total_loss += results['auc_loss']
+                if hasattr(model, 'group_loss_fn'):
+                    results['auc_loss'] = model.group_loss_fn(results)
+                    total_loss += results['auc_loss']
                 total_loss = total_loss/batch_size
                 total_loss.backward()
                 optimizer.step()
@@ -661,8 +662,9 @@ class Trainer:
             # 计算剩余batch的数量
             remaining_batches = len(loader) % batch_size
             # 反向传播
-            results['auc_loss'] = model.group_loss_fn(results)
-            total_loss += results['auc_loss']
+            if hasattr(model, 'group_loss_fn'):
+                results['auc_loss'] = model.group_loss_fn(results)
+                total_loss += results['auc_loss']
             total_loss = total_loss / remaining_batches  # 使用剩余batch数量进行平均
             total_loss.backward()
             optimizer.step()

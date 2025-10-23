@@ -7,7 +7,7 @@ source ~/zheng/miniconda3/etc/profile.d/conda.sh
 conda activate multimodal-fusion
 cd /home/zheng/zheng/multimodal-fusion/downstream_survival
 
-CUDA_DEVICE=1
+CUDA_DEVICE=3
 export CUDA_VISIBLE_DEVICES="$CUDA_DEVICE"
 
 # 数据相关参数
@@ -25,7 +25,7 @@ LEARNING_RATE=1e-4
 WEIGHT_DECAY=1e-5
 OPTIMIZER="adam"
 EARLY_STOPPING="--early_stopping"  # 启用早停
-BATCH_SIZE=128
+BATCH_SIZE=64
 
 # 模型参数
 MODEL_TYPE="gate_mil_detach"
