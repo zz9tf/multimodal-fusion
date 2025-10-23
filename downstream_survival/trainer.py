@@ -257,7 +257,7 @@ class Logger:
         
         # 类别统计
         self.batch_log = {
-            'class_stats': [{"count": 0, "correct": 0} for _ in range(n_classes)],
+            'class_stats': [{"count": 0, "correct": 0} for _ in range(self.n_classes)],
             'labels': [],
             'probs': [],
             'loss': 0.0
@@ -315,7 +315,7 @@ class Logger:
         if Y_hat.numel() == 1 and Y.numel() == 1:
             label_class = int(Y.item())
             self.batch_log['class_stats'][label_class]["count"] += 1
-            self.batch_log['class_stats'][label_class]["correct"] += int(Y_hat.item() == Y.item())
+            self.batch_log['class_stats'][label_class]["correct"] += (int(Y_hat.item() == Y.item()))
         else:
             unique_labels = torch.unique(Y)
             for label_class in unique_labels.tolist():
@@ -564,9 +564,9 @@ class Trainer:
         optimizer = get_optim(model, self.opt, self.lr, self.reg)
         
         # 初始化数据加载器
-        train_loader = get_split_loader(train_split, training=True, weighted=True, batch_size=self.batch_size)
-        val_loader = get_split_loader(val_split, training=False, weighted=False, batch_size=self.batch_size)
-        test_loader = get_split_loader(test_split, training=False, weighted=False, batch_size=self.batch_size)
+        train_loader = get_split_loader(train_split, training=True, weighted=True, batch_size=1)
+        val_loader = get_split_loader(val_split, training=False, weighted=False, batch_size=1)
+        test_loader = get_split_loader(test_split, training=False, weighted=False, batch_size=1)
 
         # 初始化早停
         early_stopping_obj = EarlyStopping(patience=25, stop_epoch=10, verbose=True) if self.early_stopping else None
@@ -617,8 +617,13 @@ class Trainer:
         Level 3: 标准模型单个epoch训练
         """
         model.train()
+        
+        # 🔧 重置epoch统计信息，确保每个epoch的统计是独立的
+        logger.reset_epoch_stats()
 
         print('\n')
+        batch_size = self.experiment_config['batch_size']
+        total_loss = 0
         for batch_idx, (data, label) in enumerate(loader):
             # 标签已经是tensor，直接移动到设备
             label = label.to(device)
@@ -632,30 +637,50 @@ class Trainer:
             Y_hat = results['predictions']
             
             # 计算损失
-            # 从results中移除logits，避免重复传递
             results['labels'] = label
-            loss = self.loss_fn(**results)
-            
+            loss = self.loss_fn(results['logits'], results['labels'], results)
+            total_loss += loss
             # 记录指标
             logger.log_batch(Y_hat, label, Y_prob, loss)
             
-            # 计算准确率
-            # accuracy = calculate_accuracy(Y_hat, label)
-            
-            # 打印进度
-            # if (batch_idx + 1) % 20 == 0:
-            #     print('batch {}, loss: {:.4f}, acc: {:.4f}'.format(
-            #         batch_idx, loss.item(), accuracy))
-            
+            if (batch_idx + 1) % batch_size == 0:
+                # 反向传播
+                results['auc_loss'] = model.group_loss_fn(results)
+                total_loss += results['auc_loss']
+                total_loss = total_loss/batch_size
+                total_loss.backward()
+                optimizer.step()
+                optimizer.zero_grad()
+                if hasattr(model, 'verbose_items'):
+                    items = model.verbose_items(results)
+                    if len(items) > 0:
+                        print('Batch {}/{}: '.format(batch_idx + 1, len(loader)) + ' '.join([f'{key}: {value:.4f}' for key, value in items]))
+                total_loss = 0
+        
+        if len(loader) % batch_size != 0:
+            # 计算剩余batch的数量
+            remaining_batches = len(loader) % batch_size
             # 反向传播
-            loss.backward()
+            results['auc_loss'] = model.group_loss_fn(results)
+            total_loss += results['auc_loss']
+            total_loss = total_loss / remaining_batches  # 使用剩余batch数量进行平均
+            total_loss.backward()
             optimizer.step()
             optimizer.zero_grad()
-
+            if hasattr(model, 'verbose_items'):
+                items = model.verbose_items(results)
+                if len(items) > 0:
+                    print('Final batch: ' + ' '.join([f'{key}: {value:.4f}' for key, value in items]))
+            total_loss = 0
         # 计算平均指标
         train_loss = logger.batch_log['loss'] / len(loader)
 
         print('Epoch: {}, train_loss: {:.4f}, train_acc: {:.4f}'.format(epoch, train_loss, logger.get_overall_accuracy()))
+        if hasattr(model, 'verbose_items'):
+            results['is_epoch'] = True
+            items = model.verbose_items(results)
+            if len(items) > 0:
+                print('- ' + ' '.join([f'{key}: {value:.4f}' for key, value in items]))
         
         # 计算并返回指标
         return self._calculate_epoch_metrics(logger)
@@ -676,7 +701,7 @@ class Trainer:
         probs = torch.cat(logger.batch_log['probs'], dim=0) # [N, C]
         train_acc /= n_classes
         train_loss = logger.batch_log['loss'] / len(labels)
-        
+
         # 计算AUC - 使用 torchmetrics（Tensor/GPU 原生）
         if n_classes == 2:
             auroc = TM_AUROC(task='binary').to(probs.device)
@@ -698,6 +723,12 @@ class Trainer:
         n_classes = self.model_config['n_classes']
         logger = Logger(n_classes=n_classes)
         
+        # 重置模型的group_logits和group_labels，确保验证时从干净状态开始
+        if hasattr(model, 'group_logits'):
+            model.group_logits = []
+        if hasattr(model, 'group_labels'):
+            model.group_labels = []
+        
         with torch.no_grad():
             for batch_idx, (data, label) in enumerate(loader):
                 label = label.to(device)
@@ -712,10 +743,14 @@ class Trainer:
                 Y_hat = results['predictions']
 
                 results['labels'] = label
-                loss = self.loss_fn(**results)
+                loss = self.loss_fn(results['logits'], results['labels'], results)
                 logger.log_batch(Y_hat, label, Y_prob, loss)
-
-        # 计算验证指标
+        
+        # 在验证结束时计算AUC损失
+        if hasattr(model, 'group_loss_fn') and hasattr(model, 'group_logits') and model.group_logits:
+            results['auc_loss'] = model.group_loss_fn(results)
+            logger.batch_log['loss'] += results['auc_loss']
+            
         val_loss = logger.batch_log['loss']/len(loader)
         val_acc = logger.get_overall_accuracy()
         labels = torch.cat(logger.batch_log['labels'], dim=0)
@@ -730,6 +765,12 @@ class Trainer:
 
         print('\nVal Set, val_loss: {:.4f}, val_accuracy: {:.4f}, auc: {:.4f}'.format(val_loss, val_acc, auc))
         
+        if hasattr(model, 'verbose_items'):
+            results['is_epoch'] = True
+            items = model.verbose_items(results)
+            if len(items) > 0:
+                print('- ' + ' '.join([f'{key}: {value:.4f}' for key, value in items]))
+
         for i in range(n_classes):
             acc, correct, count = logger.get_class_accuracy(i)
             print('class {}: acc {}, correct {}/{}'.format(i, acc, correct, count))
@@ -755,6 +796,12 @@ class Trainer:
         """模型评估总结"""
         model.eval()
         logger = Logger(n_classes=self.model_config['n_classes'])
+
+        # 重置模型的group_logits和group_labels，确保测试时从干净状态开始
+        if hasattr(model, 'group_logits'):
+            model.group_logits = []
+        if hasattr(model, 'group_labels'):
+            model.group_labels = []
 
         dataset_ref = loader.dataset
         case_ids_list: List[str]
@@ -783,12 +830,24 @@ class Trainer:
                 Y_prob = results['probabilities']
                 Y_hat = results['predictions']
             
-            # 从results中移除logits，避免重复传递
             results['labels'] = label
-            loss = self.loss_fn(**results)
+            loss = self.loss_fn(results['logits'], results['labels'], results)
             logger.log_batch(Y_hat, label, Y_prob, loss)
             
             patient_results.update({case_id: {'case_id': np.array(case_id), 'prob': Y_prob.cpu().numpy(), 'label': label.item()}})
+        
+        # 在测试结束时计算AUC损失
+        if hasattr(model, 'group_loss_fn') and hasattr(model, 'group_logits') and model.group_logits:
+            results['auc_loss'] = model.group_loss_fn(results)
+            logger.batch_log['loss'] += results['auc_loss']
+        
+        test_loss = logger.batch_log['loss']/len(loader)
+        print('\nTest Set, test_loss: {:.4f}, test_accuracy: {:.4f}, auc: {:.4f}'.format(test_loss, test_acc, auc))
+        if hasattr(model, 'verbose_items'):
+            results['is_epoch'] = True
+            items = model.verbose_items(results)
+            if len(items) > 0:
+                print('- ' + ' '.join([f'{key}: {value:.4f}' for key, value in items]))
 
         test_acc = logger.get_overall_accuracy()
         labels = torch.cat(logger.batch_log['labels'], dim=0)

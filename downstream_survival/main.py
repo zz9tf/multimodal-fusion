@@ -54,6 +54,19 @@ def _get_model_specific_config(args):
             'return_features': args.return_features,
             'attention_only': args.attention_only
         }
+    elif model_type == 'auc_clam':
+        return {
+            'gate': args.gate,
+            'base_weight': args.base_weight,
+            'inst_loss_fn': args.inst_loss_fn,
+            'model_size': args.model_size,
+            'subtyping': args.subtyping,
+            'inst_number': args.inst_number,
+            'channels_used_in_model': args.channels_used_in_model,
+            'return_features': args.return_features,
+            'attention_only': args.attention_only,
+            'auc_loss_weight': args.auc_loss_weight,
+        }
     elif model_type == 'mil':
         return {
             'model_size': args.model_size,
@@ -76,6 +89,34 @@ def _get_model_specific_config(args):
             'lambda2': args.lambda2,
             'tau1': args.tau1,
             'tau2': args.tau2,
+        }
+    elif model_type == 'gate_shared_mil':
+        return {
+            'model_size': args.model_size,
+            'channels_used_in_model': args.channels_used_in_model,
+            'return_features': args.return_features,
+            'confidence_weight': args.confidence_weight,
+            'feature_weight_weight': args.feature_weight_weight,
+            'channels_used_in_model': args.channels_used_in_model,
+        }
+    elif model_type == 'gate_mil':
+        return {
+            'model_size': args.model_size,
+            'channels_used_in_model': args.channels_used_in_model,
+            'return_features': args.return_features,
+            'confidence_weight': args.confidence_weight,
+            'feature_weight_weight': args.feature_weight_weight,
+            'channels_used_in_model': args.channels_used_in_model,
+        }
+    elif model_type == 'gate_auc_mil':
+        return {
+            'model_size': args.model_size,
+            'channels_used_in_model': args.channels_used_in_model,
+            'return_features': args.return_features,
+            'confidence_weight': args.confidence_weight,
+            'feature_weight_weight': args.feature_weight_weight,
+            'channels_used_in_model': args.channels_used_in_model,
+            'auc_loss_weight': args.auc_loss_weight,
         }
     else:
         # 为其他模型类型返回空配置，可以根据需要扩展
@@ -183,6 +224,7 @@ def main(args, configs):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     dataset = MultimodalDataset(
         csv_path=experiment_config['csv_path'],
+        data_root_dir=experiment_config['data_root_dir'],
         channels=channels,
         align_channels=align_channels,
         alignment_model_path=experiment_config['alignment_model_path'],
@@ -352,7 +394,7 @@ parser.add_argument('--batch_size', type=int, default=1,
                     help='批次大小 (default: 1)')
 
 # 模型相关参数
-parser.add_argument('--model_type', type=str, choices=['clam', 'mil', 'clam_svd_loss'], 
+parser.add_argument('--model_type', type=str, choices=['clam', 'auc_clam', 'mil', 'clam_svd_loss', 'gate_shared_mil', 'gate_mil', 'gate_auc_mil'], 
                     default='clam', help='模型类型 (default: clam)')
 parser.add_argument('--input_dim', type=int, default=1024,
                     help='输入维度')
@@ -396,7 +438,15 @@ parser.add_argument('--tau1', type=float, default=0.1,
 parser.add_argument('--tau2', type=float, default=0.05,
                     help='CLAM_SVD_LOSS: 对齐损失权重')
 
+# GatedMIL相关参数
+parser.add_argument('--confidence_weight', type=float, default=1.0,
+                    help='GatedMIL: 置信度权重')
+parser.add_argument('--feature_weight_weight', type=float, default=1.0,
+                    help='GatedMIL: 特征权重权重')
 
+# AUC_CLAM & GateAUCMIL相关参数
+parser.add_argument('--auc_loss_weight', type=float, default=1.0,
+                    help='AUC_CLAM & GateAUCMIL: AUC损失权重')
 
 # 解析参数
 args = parser.parse_args()

@@ -372,7 +372,7 @@ class MultiModalAlignmentTrainer:
             'scheduler_state_dict': self.scheduler.state_dict(),
             'val_loss': val_loss,
         }, save_path)
-        logger.info(f"✅ [Step {step}] 保存最佳模型 (val_loss: {val_loss:.4f})")
+        logger.info(f"✅ [Step {step}] 保存模型 (val_loss: {val_loss:.4f})")
     
     def _check_early_stopping(self, val_loss: float) -> bool:
         """
@@ -696,7 +696,8 @@ class MultiModalAlignmentTrainer:
               max_steps: int = 10000,
               save_path: str = "best_model.pth",
               log_interval: int = 100,
-              val_interval: int = 500) -> Dict[str, List[float]]:
+              val_interval: int = 500,
+              save_interval: Optional[int] = None) -> Dict[str, List[float]]:
         """
         训练模型（Step 模式 - 现代做法）
         
@@ -707,6 +708,7 @@ class MultiModalAlignmentTrainer:
             save_path: 最佳模型保存路径
             log_interval: 每隔多少步记录日志
             val_interval: 每隔多少步进行验证
+            save_interval: 每隔多少步保存模型（可选，不设置则不保存）
             
         Returns:
             训练历史记录字典
@@ -767,11 +769,18 @@ class MultiModalAlignmentTrainer:
                 # 保存最佳模型
                 if val_loss < self.best_val_loss:
                     self._save_checkpoint(save_path, global_step, val_loss)
+                    logger.info(f"💾 [Step {global_step}] 最佳模型已保存到: {save_path}")
                 
                 # 检查early stopping
                 if self._check_early_stopping(val_loss):
                     logger.info(f"🛑 [Step {global_step}] Early stopping触发，训练提前结束")
                     break
+            
+            # 📦 定期保存模型
+            if save_interval is not None and global_step % save_interval == 0:
+                checkpoint_path = f"{save_path}.step_{global_step}"
+                self._save_checkpoint(checkpoint_path, global_step, loss)
+                logger.info(f"💾 [Step {global_step}] 模型已保存到: {checkpoint_path}")
             
             # 📝 定期日志输出
             if global_step % log_interval == 0:

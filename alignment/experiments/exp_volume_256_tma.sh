@@ -7,7 +7,7 @@ eval "$(conda shell.bash hook)"
 conda activate multimodal-fusion
 conda env list
 
-CUDA_VISIBLE_DEVICES=1 python /home/zheng/zheng/multimodal-fusion/alignment/run.py \
+CUDA_VISIBLE_DEVICES=0 python /home/zheng/zheng/multimodal-fusion/alignment/run.py \
     --align_mode intersection \
     --pattern "tma_uni_patch_256_stride_256_dim_1024_{marker}.npz" \
     --mismatch_ratio 1.0 \
@@ -19,14 +19,15 @@ CUDA_VISIBLE_DEVICES=1 python /home/zheng/zheng/multimodal-fusion/alignment/run.
     --num_layers 2 \
     --learning_rate 1e-4 \
     --weight_decay 1e-5 \
-    --max_steps 2000 \
-    --batch_size 8192 \
-    --loss_type rank1 \
-    --save_path /home/zheng/zheng/multimodal-fusion/alignment/results/rank1_detailed_tma_multimodal_alignment_model.pth \
+    --max_steps 4000 \
+    --batch_size 512 \
+    --loss_type volume \
+    --save_path /home/zheng/zheng/multimodal-fusion/alignment/results/256_tma_volume/volume_256_tma_volume_multimodal_alignment_model.pth \
     --num_workers 0 \
     --log_interval 10 \
     --val_interval 100 \
     --val_max_batches 100 \
-    --loss2_chunk_size 8
+    --loss2_chunk_size 8 \
+    --save_interval 800 \
     
 

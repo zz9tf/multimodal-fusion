@@ -70,6 +70,7 @@ def main():
     parser.add_argument("--verbose_timing", action="store_true", help="启用详细性能分析（默认关闭）")
     parser.add_argument("--early_stopping_patience", type=int, default=10, help="Early stopping耐心值（验证loss不改善的步数，0表示禁用）")
     parser.add_argument("--early_stopping_min_delta", type=float, default=1e-4, help="Early stopping最小改善阈值")
+    parser.add_argument("--save_interval", type=int, default=None, help="按批次保存模型的间隔（步数），不设置则不保存")
     
     args = parser.parse_args()
     
@@ -170,6 +171,11 @@ def main():
     
     # 训练模型（Step 模式）
     logger.info("🚀 开始训练...")
+    if args.save_interval:
+        logger.info(f"📦 将每 {args.save_interval} 步保存一次模型")
+    else:
+        logger.info("📦 不进行定期模型保存")
+    
     history = trainer.train(
         train_loader=train_loader,
         val_loader=val_loader,
@@ -177,6 +183,7 @@ def main():
         save_path=args.save_path,
         log_interval=args.log_interval,
         val_interval=args.val_interval,
+        save_interval=args.save_interval,
     )
     
     logger.info(f"✅ 训练完成！记录了 {len(history['train_losses'])} 步的训练数据")
@@ -207,6 +214,7 @@ def main():
             'seed': args.seed,
             'num_layers': args.num_layers,
             'loss_type': args.loss_type,
+            'save_interval': args.save_interval,
         }
     }
     
