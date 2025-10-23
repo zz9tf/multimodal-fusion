@@ -274,7 +274,6 @@ Thumbs.db
 
 # Model artifacts
 artifacts/
-models/
 saved_models/
 
 # Experiment tracking
