@@ -241,7 +241,6 @@ tensorboard_logs/
 
 # Large datasets
 data/
-datasets/
 *.zip
 *.tar.gz
 *.tar.bz2
