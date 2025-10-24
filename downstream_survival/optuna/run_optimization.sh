@@ -15,7 +15,7 @@ DATA_ROOT_DIR="/home/zheng/zheng/mini2/hancock_data/WSI_UNI_encodings/WSI_Primar
 CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv"
 RESULTS_DIR="./optuna_results"
 N_TRIALS=100
-N_FOLDS=5
+N_FOLDS=10
 N_JOBS=10
 
 # 目标通道
