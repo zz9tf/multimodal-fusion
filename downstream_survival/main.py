@@ -401,6 +401,12 @@ parser.add_argument('--early_stopping', action='store_true', default=False,
                     help='启用早停')
 parser.add_argument('--batch_size', type=int, default=64,
                     help='批次大小 (default: 64)')
+parser.add_argument('--lr_scheduler', type=str, 
+                    choices=['none', 'cosine', 'cosine_warm_restart', 'step', 'plateau', 'exponential'], 
+                    default='none',
+                    help='学习率调度器类型 (default: none)')
+parser.add_argument('--lr_scheduler_params', type=str, default='{}',
+                    help='学习率调度器参数 (JSON字符串，默认: {})')
 
 # 模型相关参数
 parser.add_argument('--model_type', type=str, choices=['clam', 'auc_clam', 'clam_svd_loss', 'mil', 'gate_shared_mil', 'gate_mil', 'gate_auc_mil', 'gate_mil_detach'], 
@@ -494,7 +500,11 @@ configs = {
         'reg': args.reg,
         'opt': args.opt,
         'early_stopping': args.early_stopping,
-        'batch_size': args.batch_size
+        'batch_size': args.batch_size,
+        'scheduler_config': {
+            'type': args.lr_scheduler if args.lr_scheduler != 'none' else None,
+            **(json.loads(args.lr_scheduler_params) if args.lr_scheduler_params else {})
+        }
     },
     
     'model_config': {

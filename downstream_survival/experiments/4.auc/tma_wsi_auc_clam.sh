@@ -25,7 +25,7 @@ LEARNING_RATE=1e-4
 WEIGHT_DECAY=1e-5
 OPTIMIZER="adam"
 EARLY_STOPPING="--early_stopping"  # 启用早停
-BATCH_SIZE=64
+BATCH_SIZE=256
 
 # 模型参数
 MODEL_TYPE="auc_clam"

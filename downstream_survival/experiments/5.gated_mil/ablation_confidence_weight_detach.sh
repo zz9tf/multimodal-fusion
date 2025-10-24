@@ -9,7 +9,7 @@ source ~/zheng/miniconda3/etc/profile.d/conda.sh
 conda activate multimodal-fusion
 cd /home/zheng/zheng/multimodal-fusion/downstream_survival
 
-CUDA_DEVICE=0
+CUDA_DEVICE=1
 export CUDA_VISIBLE_DEVICES="$CUDA_DEVICE"
 
 # 数据相关参数
@@ -19,7 +19,7 @@ CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/su
 TARGET_CHANNELS="features tma_CD3 tma_CD8 tma_CD56 tma_CD68 tma_CD163 tma_HE tma_MHC1 tma_PDL1"
 
 # 实验 & 训练参数
-EXP_CODE="ablation_confidence_weight"
+EXP_CODE="ablation_confidence_weight_detach"
 SEED=5678
 K_FOLDS=10
 MAX_EPOCHS=200

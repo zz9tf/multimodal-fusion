@@ -191,21 +191,12 @@ class GateAUCMIL(GateSharedMIL):
             ('auc_loss', result['auc_loss'])
         ]
     
-    def extract_features(self, input_data, feature_type='all', channel=None):
+    def extract_features(self, input_data):
         """
         便捷的特征提取方法
         
         Args:
             input_data: 输入数据
-            feature_type: 特征类型，可选：
-                - 'raw': 原始输入特征
-                - 'weighted': 特征权重加权后的特征  
-                - 'attention': 注意力权重
-                - 'combined': MIL聚合后的特征
-                - 'confidence': 置信度分数
-                - 'feature_weights': 特征权重
-                - 'all': 所有特征（默认）
-            channel: 指定通道，如果为None则返回所有通道
             
         Returns:
             Dict[str, torch.Tensor]: 特征字典
@@ -213,39 +204,6 @@ class GateAUCMIL(GateSharedMIL):
         with torch.no_grad():
             result = self.forward(input_data, return_features=True)
             
-            if feature_type == 'all':
-                return result
-            elif feature_type in ['raw_features', 'weighted_features', 'attention_weights', 
-                                'combined_features', 'confidence_scores', 'feature_weights']:
-                features = result.get(feature_type, {})
-                if channel is not None and channel in features:
-                    return {channel: features[channel]}
-                return features
-            else:
-                raise ValueError(f"不支持的特征类型: {feature_type}")
+            return result
     
-    def get_attention_weights(self, input_data, channel=None):
-        """
-        获取注意力权重
-        
-        Args:
-            input_data: 输入数据
-            channel: 指定通道，如果为None则返回所有通道
-            
-        Returns:
-            Dict[str, torch.Tensor]: 注意力权重字典
-        """
-        return self.extract_features(input_data, feature_type='attention_weights', channel=channel)
     
-    def get_confidence_scores(self, input_data, channel=None):
-        """
-        获取置信度分数
-        
-        Args:
-            input_data: 输入数据
-            channel: 指定通道，如果为None则返回所有通道
-            
-        Returns:
-            Dict[str, torch.Tensor]: 置信度分数字典
-        """
-        return self.extract_features(input_data, feature_type='confidence_scores', channel=channel)

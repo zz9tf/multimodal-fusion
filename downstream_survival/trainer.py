@@ -186,6 +186,56 @@ def get_optim(model: nn.Module, opt: str, lr: float, reg: float) -> torch.optim.
     
     return optimizer
 
+def get_scheduler(optimizer: torch.optim.Optimizer, scheduler_config: Dict) -> Optional[torch.optim.lr_scheduler._LRScheduler]:
+    """
+    获取学习率调度器
+    
+    Args:
+        optimizer: 优化器
+        scheduler_config: 调度器配置字典
+        
+    Returns:
+        学习率调度器或None
+    """
+    scheduler_type = scheduler_config.get('type', None)
+    
+    if scheduler_type is None:
+        return None
+    
+    if scheduler_type == 'step':
+        step_size = scheduler_config.get('step_size', 50)
+        gamma = scheduler_config.get('gamma', 0.5)
+        return torch.optim.lr_scheduler.StepLR(optimizer, step_size=step_size, gamma=gamma)
+    
+    elif scheduler_type == 'cosine':
+        T_max = scheduler_config.get('T_max', 200)
+        eta_min = scheduler_config.get('eta_min', 0.0)
+        return torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_max, eta_min=eta_min)
+    
+    elif scheduler_type == 'cosine_warm_restart':
+        T_0 = scheduler_config.get('T_0', 10)  # 第一个重启周期长度
+        T_mult = scheduler_config.get('T_mult', 2)  # 周期长度倍增因子
+        eta_min = scheduler_config.get('eta_min', 0.0)  # 最小学习率
+        return torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+            optimizer, T_0=T_0, T_mult=T_mult, eta_min=eta_min
+        )
+    
+    elif scheduler_type == 'plateau':
+        mode = scheduler_config.get('mode', 'min')
+        patience = scheduler_config.get('patience', 10)
+        factor = scheduler_config.get('factor', 0.5)
+        return torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode=mode, patience=patience, factor=factor, verbose=True
+        )
+    
+    elif scheduler_type == 'exponential':
+        gamma = scheduler_config.get('gamma', 0.95)
+        return torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=gamma)
+    
+    else:
+        print(f"⚠️ 未知的调度器类型: {scheduler_type}")
+        return None
+
 def get_split_loader(dataset, training=False, weighted=False, batch_size=1):
     """获取数据加载器"""
     if training:
@@ -519,6 +569,7 @@ class Trainer:
         # 初始化模型和损失函数
         self.model = None
         self.loss_fn = None
+        self.scheduler = None
 
     def _init_model(self) -> nn.Module:
         """初始化模型"""
@@ -563,6 +614,12 @@ class Trainer:
         print_network(model)
         optimizer = get_optim(model, self.opt, self.lr, self.reg)
         
+        # 初始化学习率调度器
+        scheduler_config = self.experiment_config.get('scheduler_config', {})
+        self.scheduler = get_scheduler(optimizer, scheduler_config)
+        if self.scheduler:
+            print(f"🎯 使用学习率调度器: {scheduler_config.get('type', 'unknown')}")
+        
         # 初始化数据加载器
         train_loader = get_split_loader(train_split, training=True, weighted=True, batch_size=1)
         val_loader = get_split_loader(val_split, training=False, weighted=False, batch_size=1)
@@ -579,6 +636,15 @@ class Trainer:
             
             # 记录日志
             metrics_logger.log_epoch(epoch, train_metrics, val_metrics, optimizer.param_groups[0]['lr'])
+            
+            # 更新学习率调度器
+            if self.scheduler:
+                if isinstance(self.scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+                    # ReduceLROnPlateau需要验证损失
+                    self.scheduler.step(val_metrics['loss'])
+                else:
+                    # 其他调度器使用epoch
+                    self.scheduler.step()
             
             if stop: 
                 break

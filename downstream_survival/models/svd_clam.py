@@ -3,11 +3,22 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 from .base_model import BaseModel
-from typing import Dict
+from typing import Dict, Optional
+from .alignment_model import MultiModalAlignmentModel
 
 class Attn_Net(nn.Module):
     """注意力网络（无门控）"""
+    
     def __init__(self, L=1024, D=256, dropout=False, n_classes=1):
+        """
+        初始化注意力网络
+        
+        Args:
+            L: 输入特征维度
+            D: 隐藏层维度
+            dropout: 是否使用dropout
+            n_classes: 输出类别数
+        """
         super(Attn_Net, self).__init__()
         self.module = [
             nn.Linear(L, D),
@@ -19,11 +30,31 @@ class Attn_Net(nn.Module):
         self.module = nn.Sequential(*self.module)
     
     def forward(self, x):
+        """
+        前向传播
+        
+        Args:
+            x: 输入特征张量
+            
+        Returns:
+            attention_weights: 注意力权重
+            x: 原始输入特征
+        """
         return self.module(x), x
 
 class Attn_Net_Gated(nn.Module):
     """门控注意力网络"""
+    
     def __init__(self, L=1024, D=256, dropout=False, n_classes=1):
+        """
+        初始化门控注意力网络
+        
+        Args:
+            L: 输入特征维度
+            D: 隐藏层维度
+            dropout: 是否使用dropout
+            n_classes: 输出类别数
+        """
         super(Attn_Net_Gated, self).__init__()
         self.attention_a = [
             nn.Linear(L, D),
@@ -42,15 +73,25 @@ class Attn_Net_Gated(nn.Module):
         self.attention_c = nn.Linear(D, n_classes)
 
     def forward(self, x):
+        """
+        门控注意力前向传播
+        
+        Args:
+            x: 输入特征张量
+            
+        Returns:
+            attention_weights: 门控注意力权重
+            x: 原始输入特征
+        """
         a = self.attention_a(x)
         b = self.attention_b(x)
         A = a.mul(b)
         A = self.attention_c(A)
         return A, x
 
-class CLAM(BaseModel):
+class SVD_CLAM(BaseModel):
     """
-    CLAM 模型
+    SVD-CLAM 模型：结合SVD对齐和CLAM注意力的多模态生存预测模型
     
     配置参数：
     - n_classes: 类别数量
@@ -61,9 +102,19 @@ class CLAM(BaseModel):
     - inst_number: 正负样本采样数量
     - instance_loss_fn: 实例损失函数
     - subtyping: 是否为子类型问题
+    - alignment_layer_num: 对齐层数量
+    - alignment_channels: 对齐通道列表
+    - tau1, tau2: 温度参数
+    - lambda1, lambda2: 损失权重参数
     """
     
     def __init__(self, config):
+        """
+        初始化SVD-CLAM模型
+        
+        Args:
+            config: 模型配置字典，包含所有必要的参数
+        """
         super().__init__(config)
         
         # 验证配置完整性
@@ -97,8 +148,20 @@ class CLAM(BaseModel):
         self.channels_used_in_model = config['channels_used_in_model']
         self.return_features = config.get('return_features', False)
         self.attention_only = config.get('attention_only', False)
-        
         size = self.size_dict[self.model_size]
+        self.alignment_layer_num = config.get('alignment_layer_num', 2)
+        self.alignment_channels = config.get('alignment_channels', ['tma_CD3', 'tma_CD8', 'tma_CD56', 'tma_CD68', 'tma_CD163', 'tma_HE', 'tma_MHC1', 'tma_PDL1'])
+        self.tau1 = config.get('tau1', 0.1)
+        self.tau2 = config.get('tau2', 0.1)
+        self.lambda1 = config.get('lambda1', 1.0)
+        self.lambda2 = config.get('lambda2', 0.1)
+        self.loss2_chunk_size = config.get('loss2_chunk_size', None)
+        
+        self.alignment_layers = MultiModalAlignmentModel(
+            modality_names=self.alignment_channels, 
+            feature_dim=self.input_dim, 
+            num_layers=self.alignment_layer_num
+        )
         
         # 构建特征提取层
         fc = [nn.Linear(size[0], size[1]), nn.ReLU(), nn.Dropout(self.dropout)]
@@ -155,8 +218,23 @@ class CLAM(BaseModel):
         """
         处理输入数据，将多模态数据转换为统一的张量格式
         """
-        h = torch.cat([input_data[channel] for channel in self.channels_used_in_model], dim=1).squeeze(0)
-        return h
+        aligned_features = {}
+        for key in input_data:
+            if key in self.channels_used_in_model and key in self.alignment_layers.modality_names:
+                aligned_features[key] = input_data[key]
+        aligned_features = self.alignment_layers.forward(aligned_features)
+        svd_loss, svd_values = self._compute_rank1_loss_with_metrics(aligned_features)
+        h = []
+        keys = []
+        for channel in self.channels_used_in_model:
+            if channel not in aligned_features:
+                keys.append(channel)
+                h.append(input_data[channel])
+            else:
+                keys.append(channel+'_aligned')
+                h.append(aligned_features[channel])
+        h = torch.cat(h, dim=1).squeeze(0)
+        return h, svd_loss, svd_values
         
     @staticmethod
     def create_positive_targets(length, device):
@@ -216,8 +294,10 @@ class CLAM(BaseModel):
             Dict[str, Any]: 统一格式的结果字典
         """
         # 处理输入数据（支持多模态）
-        h = self._process_input_data(input_data)
-        A, h = self.attention_net(h)  # A: [N, 1], h: [N, D]
+        # align the features
+        h, svd_loss, svd_values = self._process_input_data(input_data)
+        
+        A, h = self.attention_net(h.detach())  # A: [N, 1], h: [N, D]
         A = torch.transpose(A, 1, 0)  # A: [1, N]
         
         if self.attention_only:
@@ -233,15 +313,17 @@ class CLAM(BaseModel):
         # [1, n_classes]
         logits = torch.empty(1, self.n_classes).float().to(M.device)
         if self.n_classes == 2:
-            logits = self.classifiers(M) # [1, 2]
+            logits = self.classifiers(M)  # [1, 2]
         else:
             for c in range(self.n_classes):
-                logits[0, c] = self.classifiers[c](M[c]) # [1, 1] independent linear layer for each class
+                logits[0, c] = self.classifiers[c](M)  # [1, 1] independent linear layer for each class
         Y_hat = torch.topk(logits, 1, dim = 1)[1]
         Y_prob = F.softmax(logits, dim = 1)
         # 构建基础结果字典
         result_kwargs = {
-            'attention_weights': A_raw
+            'attention_weights': A_raw,
+            'svd_loss': svd_loss,
+            'svd_values': svd_values
         }
         # 添加特征
         if self.return_features:
@@ -285,19 +367,101 @@ class CLAM(BaseModel):
             predictions=Y_hat,
             **result_kwargs
         )
-    
-    def loss_fn(self, logits: torch.Tensor, labels: torch.Tensor, result: Dict[str, float]) -> torch.Tensor:
+        
+    def _compute_rank1_loss_with_metrics(self, aligned_features: Dict[str, torch.Tensor], 
+                                          aligned_negatives: Optional[Dict[str, torch.Tensor]] = None):
+        """
+        计算 rank1 损失并返回 SVD 特征值（带详细时间分析）
+        
+        Returns:
+            loss: 损失值
+            svd_values: SVD 特征值 Tensor[num_modalities]
+        """
+        # 1. SVD 计算和 loss1
+        feature_list = list(aligned_features.values())
+        features = torch.stack(feature_list, dim=-1).squeeze(0)  # [batch_size, feature_dim, num_modalities]
+        
+        # L2 归一化：x <- x / (||x||_2 + ε)
+        eps = 1e-8
+        l2_norm = torch.norm(features, p=2, dim=1, keepdim=True)  # [batch_size, 1, num_modalities]
+        features = features / (l2_norm + eps)
+        
+        # U: [batch_size, feature_dim, num_modalities]
+        # S(diag): [batch_size, num_modalities]
+        # _: [batch_size, feature_dim, num_modalities]
+        U, S, _ = torch.linalg.svd(features)
+        
+        # 📊 记录 SVD 特征值：对 batch 维度求平均（用于记录单个 batch 的代表值）
+        svd_values = S.mean(dim=0).detach()  # [num_modalities]
+        
+        loss1 = F.cross_entropy(S / self.tau1, torch.zeros(S.shape[0]).to(S.device).long())
+        
+        # 2. loss2 计算
+        U1 = U[:, :, 0] # dominate projection [batch_size, feature_dim]
+        # 组内矩阵计算：按 loss2_chunk_size 将 batch 分组，仅组内做 softmax/CE
+        batch_count = U1.shape[0]
+        if self.loss2_chunk_size is None or self.loss2_chunk_size >= batch_count:
+            loss2 = F.cross_entropy((U1 @ U1.T) / self.tau2, torch.arange(batch_count, device=U1.device).long())
+        else:
+            c = max(1, int(self.loss2_chunk_size))
+            full = (batch_count // c) * c
+            loss2_sum = U1.new_tensor(0.0)
+            if full > 0:
+                groups = U1[:full].view(-1, c, U1.shape[1])  # [G, c, D]
+                logits_gc = torch.einsum('gxd,gyd->gxy', groups, groups) / self.tau2  # [G, c, c]
+                targets_gc = torch.arange(c, device=U1.device).expand(logits_gc.shape[0], c) # [G, c]
+                loss2_sum = loss2_sum + F.cross_entropy(
+                    logits_gc.reshape(-1, c), targets_gc.reshape(-1), reduction='sum'
+                )
+            if full < batch_count:
+                tail = U1[full:]
+                c_tail = tail.shape[0]
+                logits_tail = (tail @ tail.T) / self.tau2
+                targets_tail = torch.arange(c_tail, device=U1.device)
+                loss2_sum = loss2_sum + F.cross_entropy(logits_tail, targets_tail, reduction='sum')
+            loss2 = loss2_sum / batch_count
+
+        if self.lambda2 == 0:
+            return loss1 + self.lambda1 * loss2, svd_values
+
+        # 3. loss3 (loss_IM) 计算
+        batch_size = feature_list[0].shape[0]
+        positive_labels = torch.ones(batch_size, device=features.device)
+        
+        def fuse(feat_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
+            # 将多模态特征拼接为单向量 [N, d*K]
+            return torch.cat(list(feat_dict.values()), dim=1)
+
+        if aligned_negatives is None:
+            raise RuntimeError("Negative features not provided by dataset. Ensure DataLoader yields 'features_neg' per batch.")
+        neg_fused = fuse(aligned_negatives)
+
+        pos_fused = fuse(aligned_features)
+        all_features = torch.cat([pos_fused, neg_fused], dim=0)
+        negative_labels = torch.zeros(neg_fused.shape[0], device=features.device)
+        all_labels = torch.cat([positive_labels, negative_labels], dim=0)
+
+        pred_M = self.alignment_layers.mlp_predictor(all_features)
+        loss_IM = F.binary_cross_entropy(pred_M.squeeze(), all_labels)
+        
+        total_loss = loss1 + self.lambda1 * loss2 + self.lambda2 * loss_IM
+        return total_loss, svd_values
+    def loss_fn(self, logits: torch.Tensor, labels: torch.Tensor, result: Dict[str, torch.Tensor]) -> torch.Tensor:
         """
         计算损失
+        
+        Args:
+            logits: 模型输出的logits
+            labels: 真实标签
+            result: 包含额外损失的结果字典
+            
+        Returns:
+            总损失值
         """
         if self.base_weight < 1:
-            return self.base_loss_fn(logits, labels)*self.base_weight + result['total_inst_loss']*(1-self.base_weight)
+            return (self.base_loss_fn(logits, labels) * self.base_weight + 
+                   result['total_inst_loss'] * (1 - self.base_weight) + 
+                   result['svd_loss'])
         else:
             return self.base_loss_fn(logits, labels)
-        
-    def verbose_item(self, result: Dict[str, float]) -> str:
-        """
-        打印详细信息
-        """
-        return f"total_inst_loss: {result['total_inst_loss']:.4f}, base_weight: {self.base_weight:.4f}"
 
