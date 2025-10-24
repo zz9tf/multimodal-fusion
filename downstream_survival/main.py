@@ -399,8 +399,8 @@ parser.add_argument('--opt', type=str, choices=['adam', 'sgd'], default='adam',
                     help='优化器类型')
 parser.add_argument('--early_stopping', action='store_true', default=False, 
                     help='启用早停')
-parser.add_argument('--batch_size', type=int, default=1,
-                    help='批次大小 (default: 1)')
+parser.add_argument('--batch_size', type=int, default=64,
+                    help='批次大小 (default: 64)')
 
 # 模型相关参数
 parser.add_argument('--model_type', type=str, choices=['clam', 'auc_clam', 'clam_svd_loss', 'mil', 'gate_shared_mil', 'gate_mil', 'gate_auc_mil', 'gate_mil_detach'], 
@@ -428,7 +428,8 @@ parser.add_argument('--subtyping', action='store_true', default=False,
                     help='子类型问题')
 parser.add_argument('--inst_number', type=int, default=8, 
                     help='CLAM: 正负样本采样数量')
-parser.add_argument('--channels_used_in_model', type=str, nargs='+', default=None,
+parser.add_argument('--channels_used_in_model', type=str, nargs='+', 
+                    default=['features', 'CD3', 'CD8', 'CD56', 'CD68', 'CD163', 'HE', 'MHC1', 'PDL1'],
                     help='模型中需要使用的通道')
 parser.add_argument('--return_features', action='store_true', default=False, 
                     help='MIL & CLAM: 返回特征')
