@@ -62,7 +62,7 @@ class OptunaConfig:
         params['input_dim'] = 1024
         
         # Dropout率 - 基于默认值 0.25 的合理范围
-        params['dropout'] = trial.suggest_float('dropout', 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)
+        params['dropout'] = trial.suggest_categorical('dropout', [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9])
         
         # 模型大小 - 基于 main.py 的 choices
         params['model_size'] = trial.suggest_categorical('model_size', 
@@ -73,20 +73,20 @@ class OptunaConfig:
         params['gate'] = trial.suggest_categorical('gate', [True, False])
         
         # Bag级别损失权重 - 基于默认值 0.7 的合理范围
-        params['base_weight'] = trial.suggest_float('base_weight', 0.3, 0.5, 0.7, 0.9)
+        params['base_weight'] = trial.suggest_categorical('base_weight', [0.3, 0.5, 0.7, 0.9])
         
         # 实例级别损失函数 - 基于 main.py 的 choices
         params['inst_loss_fn'] = trial.suggest_categorical('inst_loss_fn', [None, 'svm', 'ce'])
         
         # 正负样本采样数量 - 基于默认值 8 的合理范围
-        params['inst_number'] = trial.suggest_int('inst_number', 4, 16, 32, 64)
+        params['inst_number'] = trial.suggest_categorical('inst_number', [4, 8, 16, 32, 64])
         
         # 通道使用策略 - 总是使用所有通道
         params['channels_used_in_model'] = ['features', 'CD3', 'CD8', 'CD56', 'CD68', 'CD163', 'HE', 'MHC1', 'PDL1']
         
         # === AUC_CLAM 特定参数 ===
         # AUC损失权重 - 基于默认值 1.0 的合理范围
-        params['auc_loss_weight'] = trial.suggest_float('auc_loss_weight', 0.1, 0.5, 1.0, 1.5, 2.0)
+        params['auc_loss_weight'] = trial.suggest_categorical('auc_loss_weight', [0.1, 0.5, 1.0, 1.5, 2.0])
         
         return params
     

@@ -283,3 +283,4 @@ mlruns/
 config.ini
 secrets.json
 .secrets
+optuna_results/

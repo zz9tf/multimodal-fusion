@@ -130,6 +130,7 @@ class AUCCLAMOptimizer:
                     data_root_dir=self.data_root_dir,
                     csv_path=self.csv_path,
                     target_channels=target_channels,
+                    trial_number=trial.number,
                     **params
                 )
                 
@@ -206,11 +207,10 @@ class AUCCLAMOptimizer:
             
         def run_viz_server():
             try:
-                # 启动 Optuna 内置的实时可视化服务器
-                optuna.visualization.matplotlib.plot_optimization_history(study)
-                print(f"🌐 实时可视化服务器已启动")
-                print(f"📊 访问地址: http://localhost:{self.viz_port}")
-                print(f"💡 在浏览器中打开上述地址查看实时优化进度")
+                # 注意：这里只是准备可视化，实际图表会在试验完成后生成
+                print(f"🌐 实时可视化已准备就绪")
+                print(f"📊 图表将在试验完成后生成")
+                print(f"💡 查看实时优化进度")
             except Exception as e:
                 print(f"⚠️ 实时可视化启动失败: {e}")
         
@@ -219,24 +219,27 @@ class AUCCLAMOptimizer:
     
     def _save_realtime_plots(self, study: optuna.Study, trial_number: int):
         """保存实时图表"""
-        if not self.enable_realtime_viz or trial_number % 5 != 0:  # 每5个试验保存一次
-            return
-            
         try:
-            viz_dir = os.path.join(self.results_dir, "realtime_plots")
+            viz_dir = os.path.join(self.results_dir, "plots")
             os.makedirs(viz_dir, exist_ok=True)
             
             # 保存优化历史图
-            fig1 = vis.plot_optimization_history(study)
-            fig1.write_html(os.path.join(viz_dir, f"history_trial_{trial_number}.html"))
+            if len(study.trials) > 0:
+                fig1 = vis.plot_optimization_history(study)
+                fig1.write_html(os.path.join(viz_dir, f"optimization_history.html"))
+                print(f"📊 优化历史图已保存: {os.path.join(viz_dir, 'optimization_history.html')}")
             
             # 保存参数重要性图
-            if trial_number > 10:  # 需要足够的试验才能计算重要性
-                fig2 = vis.plot_param_importances(study)
-                fig2.write_html(os.path.join(viz_dir, f"importance_trial_{trial_number}.html"))
-                
+            if len(study.trials) > 10:  # 需要足够的试验才能计算重要性
+                try:
+                    fig2 = vis.plot_param_importances(study)
+                    fig2.write_html(os.path.join(viz_dir, f"param_importances.html"))
+                    print(f"📊 参数重要性图已保存: {os.path.join(viz_dir, 'param_importances.html')}")
+                except Exception as e:
+                    print(f"⚠️ 参数重要性图生成失败: {e}")
+                    
         except Exception as e:
-            print(f"⚠️ 保存实时图表失败: {e}")
+            print(f"⚠️ 保存图表失败: {e}")
     
     def optimize(self,
                  target_channels: List[str] = None,
@@ -332,20 +335,17 @@ class AUCCLAMOptimizer:
         # 执行优化
         print(f"\n🎯 开始优化 (使用前 {n_folds} folds)...")
         
-        # 自定义优化循环以支持实时可视化
-        for trial in study:
-            if trial.number >= self.n_trials:
-                break
-                
-            # 运行试验
-            study.optimize(objective, n_trials=1, n_jobs=1)
-            
-            # 保存实时图表
-            self._save_realtime_plots(study, trial.number)
-            
-            # 打印进度
-            if trial.number % 5 == 0:
-                print(f"📊 已完成 {trial.number}/{self.n_trials} 试验，当前最佳AUC: {study.best_value:.4f}")
+        # 使用 Optuna 的标准优化方法
+        study.optimize(
+            objective, 
+            n_trials=self.n_trials, 
+            n_jobs=self.n_jobs,
+            timeout=self.timeout,
+            show_progress_bar=True
+        )
+        
+        # 保存最终图表
+        self._save_realtime_plots(study, len(study.trials))
         
         # 如果启用了实时可视化，显示最终结果
         if self.enable_realtime_viz:

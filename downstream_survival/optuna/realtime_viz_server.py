@@ -114,8 +114,8 @@ def start_viz_server(study_path: str, port: int = 8080):
     def handler(*args, **kwargs):
         return OptunaVizHandler(study, *args, **kwargs)
     
-    # 启动服务器
-    with socketserver.TCPServer(("", port), handler) as httpd:
+    # 启动服务器 - 绑定到所有网络接口
+    with socketserver.TCPServer(("0.0.0.0", port), handler) as httpd:
         print(f"🌐 Optuna 实时可视化服务器已启动")
         print(f"📊 访问地址: http://localhost:{port}")
         print(f"💡 在浏览器中打开上述地址查看实时优化进度")
