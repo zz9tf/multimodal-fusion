@@ -1,5 +1,7 @@
 #!/bin/bash
 
+cd /home/zheng/zheng/multimodal-fusion/downstream_survival/optuna
+
 # 设置环境
 export CUDA_VISIBLE_DEVICES=0,1  # 使用GPU 0和1
 export PYTHONPATH="/home/zheng/zheng/multimodal-fusion/downstream_survival:$PYTHONPATH"
@@ -13,7 +15,7 @@ DATA_ROOT_DIR="/home/zheng/zheng/mini2/hancock_data/WSI_UNI_encodings/WSI_Primar
 CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv"
 RESULTS_DIR="./optuna_results"
 N_TRIALS=100
-N_FOLDS=10
+N_FOLDS=5
 N_JOBS=10
 
 # 目标通道
