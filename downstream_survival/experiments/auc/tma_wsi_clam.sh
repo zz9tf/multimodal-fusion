@@ -11,33 +11,36 @@ CUDA_DEVICE=3
 export CUDA_VISIBLE_DEVICES="$CUDA_DEVICE"
 
 # 数据相关参数
-DATA_ROOT_DIR="/home/zheng/zheng/mini2/hancock_data_copy/WSI_UNI_encodings/WSI_PrimaryTumor"
+DATA_ROOT_DIR="/home/zheng/zheng/public/hancock_data/WSI_UNI_encodings/WSI_PrimaryTumor"
 RESULTS_DIR="/home/zheng/zheng/multimodal-fusion/downstream_survival/results"
 CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv"
 TARGET_CHANNELS="features tma_CD3 tma_CD8 tma_CD56 tma_CD68 tma_CD163 tma_HE tma_MHC1 tma_PDL1"
 
 # 实验 & 训练参数
-EXP_CODE="tma_wsi_gated_mil_detach"
+EXP_CODE="tma_wsi_clam"
 SEED=5678
-K_FOLDS=10
+K_FOLDS=5
 MAX_EPOCHS=200
 LEARNING_RATE=1e-4
 WEIGHT_DECAY=1e-5
 OPTIMIZER="adam"
 EARLY_STOPPING="--early_stopping"  # 启用早停
-BATCH_SIZE=256
+BATCH_SIZE=64
 
 # 模型参数
-MODEL_TYPE="gate_mil_detach"
+MODEL_TYPE="clam"
 INPUT_DIM=1024
 DROPOUT=0.25
 N_CLASSES=2
 BASE_LOSS_FN="ce"
 
-# GatedSharedMIL特定参数
-MODEL_SIZE="32*16"
-CONFIDENCE_WEIGHT=1
-FEATURE_WEIGHT_WEIGHT=0.01
+# CLAM特定参数
+GATE="--gate"
+BASE_WEIGHT=0.9
+INST_LOSS_FN="ce"
+MODEL_SIZE="64*32"
+SUBTYPING="--subtyping"
+INST_NUMBER=8
 CHANNELS_USED_IN_MODEL="features tma_CD3 tma_CD8 tma_CD56 tma_CD68 tma_CD163 tma_HE tma_MHC1 tma_PDL1"
 
 # 运行训练
@@ -60,8 +63,11 @@ python main.py \
     --dropout $DROPOUT \
     --n_classes $N_CLASSES \
     --base_loss_fn $BASE_LOSS_FN \
+    --gate $GATE \
+    --base_weight $BASE_WEIGHT \
+    --inst_loss_fn $INST_LOSS_FN \
     --model_size $MODEL_SIZE \
-    --confidence_weight $CONFIDENCE_WEIGHT \
-    --feature_weight_weight $FEATURE_WEIGHT_WEIGHT \
+    --subtyping $SUBTYPING \
+    --inst_number $INST_NUMBER \
     --channels_used_in_model $CHANNELS_USED_IN_MODEL
 

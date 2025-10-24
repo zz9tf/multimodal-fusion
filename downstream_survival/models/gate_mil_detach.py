@@ -70,15 +70,18 @@ class GateMILDetach(GateSharedMIL):
             
             # [1, D] -> [1, n_classes]
             self.TCPLogits[channel] = self.TCPClassifier[channel](h)
+            
             # [1, n_classes] -> [1]
+            # Feature * FeatureWeight = Weighted Feature -> Weighted Feature * Attention(Weighted Feature) = h -> classifier(h) -> [1, n_classes]
             logits_loss = torch.mean(self.TCPLogitsLoss_fn(self.TCPLogits[channel], label))
             
             # [1, D] -> [1, 1]
-            self.TCPConfidence[channel] = self.TCPConfidenceLayer[channel](h)
+            # h -> confidence(h) -> [1, 1]
+            self.TCPConfidence[channel] = self.TCPConfidenceLayer[channel](h.detach())
             # pred: [1, n_classes]
             pred = F.softmax(self.TCPLogits[channel], dim = 1)
             # p_target: [1]
-            p_target = torch.gather(pred, 1, label.unsqueeze(1)).view(-1).detach()
+            p_target = torch.gather(pred, 1, label.unsqueeze(1)).view(-1)
             # confidence -> TCPLogits & TCPLogits -> labels [1]
             confidence_loss = torch.mean(self.TCPConfidenceLoss_fn(self.TCPConfidence[channel].view(-1), p_target))
             
@@ -88,14 +91,15 @@ class GateMILDetach(GateSharedMIL):
             
             # Confidence weighted combined features
             # input_features[channel]: [1, D]
-            h_for_main    = h.detach()
+            h_for_main = h.detach()
             conf_for_main = self.TCPConfidence[channel].detach()
             conf_h[:, i*self.input_dim:(i+1)*self.input_dim] = h_for_main*conf_for_main
         
         nC = len(self.channels_used_in_model)
         for k in result_kwargs:
             result_kwargs[k] /= nC
-            
+        
+        # concate(h*confidence) = conf_h -> classifier(conf_h) -> [1, n_classes]
         logits = self.classifiers(conf_h) # [1, n_classes]
         
         Y_hat = torch.topk(logits, 1, dim = 1)[1]

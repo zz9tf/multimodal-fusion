@@ -19,7 +19,7 @@ TARGET_CHANNELS="features tma_CD3 tma_CD8 tma_CD56 tma_CD68 tma_CD163 tma_HE tma
 # 实验 & 训练参数
 EXP_CODE="tma_wsi_auc_clam"
 SEED=5678
-K_FOLDS=10
+K_FOLDS=5
 MAX_EPOCHS=200
 LEARNING_RATE=1e-4
 WEIGHT_DECAY=1e-5
