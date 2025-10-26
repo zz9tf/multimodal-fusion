@@ -54,7 +54,7 @@ echo "🚀 Running baseline experiment: Fixed Learning Rate"
 echo "------------------------------------------------------------"
 EXP_CODE="clam_lr_scheduler_fixed"
 SPECIFIC_RESULTS_DIR="${RESULTS_DIR}/clam_lr_scheduler_fixed"
-mkdir -p "$SPECIFIC_RESULTS_DIR"
+mkdir -p $SPECIFIC_RESULTS_DIR
 
 python main.py \
     --data_root_dir "$DATA_ROOT_DIR" \
@@ -84,15 +84,13 @@ python main.py \
     --channels_used_in_model $CHANNELS_USED_IN_MODEL \
     --lr_scheduler none
 
-echo "✅ Completed baseline experiment: Fixed Learning Rate"
+# echo "✅ Completed baseline experiment: Fixed Learning Rate"
 
 # 2. Cosine Annealing
 echo ""
 echo "🚀 Running experiment: Cosine Annealing"
 echo "------------------------------------------------------------"
 EXP_CODE="clam_lr_scheduler_cosine"
-SPECIFIC_RESULTS_DIR="${RESULTS_DIR}/clam_lr_scheduler_cosine"
-mkdir -p "$SPECIFIC_RESULTS_DIR"
 
 python main.py \
     --data_root_dir "$DATA_ROOT_DIR" \
@@ -130,8 +128,6 @@ echo ""
 echo "🚀 Running experiment: Cosine Annealing with Warm Restart"
 echo "------------------------------------------------------------"
 EXP_CODE="clam_lr_scheduler_cosine_restart"
-SPECIFIC_RESULTS_DIR="${RESULTS_DIR}/clam_lr_scheduler_cosine_restart"
-mkdir -p "$SPECIFIC_RESULTS_DIR"
 
 python main.py \
     --data_root_dir "$DATA_ROOT_DIR" \
@@ -169,8 +165,6 @@ echo ""
 echo "🚀 Running experiment: Step Learning Rate"
 echo "------------------------------------------------------------"
 EXP_CODE="clam_lr_scheduler_step"
-SPECIFIC_RESULTS_DIR="${RESULTS_DIR}/clam_lr_scheduler_step"
-mkdir -p "$SPECIFIC_RESULTS_DIR"
 
 python main.py \
     --data_root_dir "$DATA_ROOT_DIR" \
@@ -208,8 +202,6 @@ echo ""
 echo "🚀 Running experiment: Reduce LR on Plateau"
 echo "------------------------------------------------------------"
 EXP_CODE="clam_lr_scheduler_plateau"
-SPECIFIC_RESULTS_DIR="${RESULTS_DIR}/clam_lr_scheduler_plateau"
-mkdir -p "$SPECIFIC_RESULTS_DIR"
 
 python main.py \
     --data_root_dir "$DATA_ROOT_DIR" \
