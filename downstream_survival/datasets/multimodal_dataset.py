@@ -232,11 +232,15 @@ class MultimodalDataset(Dataset):
                         if self.channels is None:
                             self.channels = list(f.keys())
                         for channel in self.channels:
-                            if channel not in f:
-                                missing_channels.append(channel)
-                            # TODO: 如果channel不存在或者channel的shape为(1, )，则认为缺少该channel
-                            # if channel not in f or f[channel].shape[0] == 1:
-                            #     missing_channels.append(channel)
+                            channel_parts = channel.split('=')
+                            if len(channel_parts) == 2:
+                                if channel_parts[0] not in f or channel_parts[1] not in f[channel_parts[0]]:
+                                    missing_channels.append(channel)
+                            elif len(channel_parts) == 3:
+                                if channel_parts[0] not in f or channel_parts[1] not in f[channel_parts[0]] or channel_parts[2] not in f[channel_parts[0]][channel_parts[1]]:
+                                    missing_channels.append(channel)
+                            else:
+                                assert False, f"⚠️ Channel {channel} 格式错误"
                         
                         if missing_channels:
                             missing_count += 1
@@ -309,13 +313,11 @@ class MultimodalDataset(Dataset):
                     # 加载所有指定的channels
                     channel_data = {}
                     for channel in self.channels:
-                        if channel in hdf5_file:
-                            # 添加重试机制处理并发读取问题
-                            data = self._read_with_retry(hdf5_file, channel, max_retries=3)
+                        data = self._read_with_retry(hdf5_file, channel, max_retries=3)
+                        if data is not None:
                             channel_data[channel] = torch.from_numpy(self._standardize_array(data))
                         else:
-                            print(f"⚠️ Channel {channel} 不存在于文件中")
-                            channel_data[channel] = torch.zeros((0, 0), dtype=torch.float32)
+                            assert False, f"⚠️ Channel {channel} 读取失败"
                 
                 # 如果需要对齐且对齐模型可用
                 if self.alignment_model is not None and self.align_channels:
@@ -384,10 +386,17 @@ class MultimodalDataset(Dataset):
         Returns:
             读取的数据数组
         """
+        channel = channel.split('=')
         for attempt in range(max_retries + 1):
             try:
                 # 尝试读取数据
-                data = hdf5_file[channel][:]
+                if len(channel) == 2:
+                    # WSI
+                    data = hdf5_file[channel[0]][channel[1]][:]
+                elif len(channel) == 3:
+                    data = hdf5_file[channel[0]][channel[1]][channel[2]][:]
+                else:
+                    assert False, f"⚠️ Channel {channel} 格式错误"
                 return data
                 
             except Exception as e:

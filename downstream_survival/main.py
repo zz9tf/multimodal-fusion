@@ -73,7 +73,20 @@ def _get_model_specific_config(args):
             'channels_used_in_model': args.channels_used_in_model,
             'return_features': args.return_features,
         }
-    elif model_type == 'clam_svd_loss':
+    elif model_type == 'clam_detach':
+        return {
+            'gate': args.gate,
+            'base_weight': args.base_weight,
+            'inst_loss_fn': args.inst_loss_fn,
+            'model_size': args.model_size,
+            'subtyping': args.subtyping,
+            'inst_number': args.inst_number,
+            'channels_used_in_model': args.channels_used_in_model,
+            'return_features': args.return_features,
+            'attention_only': args.attention_only,
+            'output_dim': args.output_dim,
+        }
+    elif model_type == 'gate_clam_svd_detach':
         return {
             'gate': args.gate,
             'base_weight': args.base_weight,
@@ -204,6 +217,142 @@ def create_k_fold_splits(dataset, k=10, seed=42):
     
     return splits
 
+def parse_channels(channels):
+    """
+    解析channels列表，将简化的通道名称映射为完整的HDF5路径
+    
+    支持的通道类型：
+    - WSI: 'wsi' -> 'wsi=features'
+    - TMA Features: 'tma', 'cd163', 'cd3', 'cd56', 'cd68', 'cd8', 'he', 'mhc1', 'pdl1'
+    - TMA Patches: 'tma_patches', 'cd163_patches', 'cd3_patches', etc.
+    - Clinical: 'clinical', 'clinical_ori', 'clinical_mask', 'clinical_ori_mask'
+    - Pathological: 'pathological', 'pathological_ori', 'pathological_mask', 'pathological_ori_mask'
+    - Blood: 'blood', 'blood_ori', 'blood_mask', 'blood_ori_mask'
+    - ICD: 'icd', 'icd_ori', 'icd_mask', 'icd_ori_mask'
+    - TMA Cell Density: 'tma_cell_density', 'tma_cell_density_ori', 'tma_cell_density_mask', 'tma_cell_density_ori_mask'
+    
+    Args:
+        channels (List[str]): 通道名称列表
+        
+    Returns:
+        List[str]: 解析后的完整通道路径列表
+        
+    Raises:
+        ValueError: 当输入通道名称无效时
+    """
+    if not channels:
+        return []
+    
+    # TMA通道定义
+    TMA_CHANNELS = ['cd163', 'cd3', 'cd56', 'cd68', 'cd8', 'he', 'mhc1', 'pdl1']
+    
+    # 支持的通道类型映射
+    CHANNEL_MAPPINGS = {
+        # WSI通道
+        'wsi': ['wsi=features'],
+        
+        # TMA Features通道
+        'tma': [f'tma={channel}=features' for channel in TMA_CHANNELS],
+        
+        # TMA Patches通道
+        'tma_patches': [f'tma={channel}=patches' for channel in TMA_CHANNELS],
+        
+        # Clinical通道
+        'clinical': ['clinical=val'],
+        'clinical_ori': ['clinical=ori_val'],
+        'clinical_mask': ['clinical=val', 'clinical=mask'],
+        'clinical_ori_mask': ['clinical=ori_val', 'clinical=mask'],
+        
+        # Pathological通道
+        'pathological': ['pathological=val'],
+        'pathological_ori': ['pathological=ori_val'],
+        'pathological_mask': ['pathological=val', 'pathological=mask'],
+        'pathological_ori_mask': ['pathological=ori_val', 'pathological=mask'],
+        
+        # Blood通道
+        'blood': ['blood=val'],
+        'blood_ori': ['blood=ori_val'],
+        'blood_mask': ['blood=val', 'blood=mask'],
+        'blood_ori_mask': ['blood=ori_val', 'blood=mask'],
+        
+        # ICD通道
+        'icd': ['icd=val'],
+        'icd_ori': ['icd=ori_val'],
+        'icd_mask': ['icd=val', 'icd=mask'],
+        'icd_ori_mask': ['icd=ori_val', 'icd=mask'],
+        
+        # TMA Cell Density通道
+        'tma_cell_density': ['tma_cell_density=val'],
+        'tma_cell_density_ori': ['tma_cell_density=ori_val'],
+        'tma_cell_density_mask': ['tma_cell_density=val', 'tma_cell_density=mask'],
+        'tma_cell_density_ori_mask': ['tma_cell_density=ori_val', 'tma_cell_density=mask'],
+    }
+    
+    # 添加单个TMA通道的映射
+    for channel in TMA_CHANNELS:
+        CHANNEL_MAPPINGS[channel] = [f'tma={channel}=features']
+        CHANNEL_MAPPINGS[f'{channel}_patches'] = [f'tma={channel}=patches']
+    
+    parsed_channels = []
+    invalid_channels = []
+    
+    for channel in channels:
+        if channel in CHANNEL_MAPPINGS:
+            parsed_channels.extend(CHANNEL_MAPPINGS[channel])
+        elif '=' in channel:  # 已经是完整路径格式
+            parsed_channels.append(channel)
+        else:
+            invalid_channels.append(channel)
+    
+    # 验证无效通道
+    if invalid_channels:
+        available_channels = list(CHANNEL_MAPPINGS.keys())
+        raise ValueError(
+            f"❌ 无效的通道名称: {invalid_channels}\n"
+            f"📋 支持的通道类型: {available_channels}\n"
+            f"💡 提示: 通道名称不区分大小写，支持单个通道或组合通道"
+        )
+    
+    return parsed_channels
+
+def get_available_channels():
+    """
+    获取所有可用的通道类型列表
+    
+    Returns:
+        Dict[str, List[str]]: 按类别分组的可用通道字典
+    """
+    TMA_CHANNELS = ['cd163', 'cd3', 'cd56', 'cd68', 'cd8', 'he', 'mhc1', 'pdl1']
+    
+    return {
+        'WSI通道': ['wsi'],
+        'TMA Features通道': ['tma'] + TMA_CHANNELS,
+        'TMA Patches通道': ['tma_patches'] + [f'{ch}_patches' for ch in TMA_CHANNELS],
+        'Clinical通道': ['clinical', 'clinical_ori', 'clinical_mask', 'clinical_ori_mask'],
+        'Pathological通道': ['pathological', 'pathological_ori', 'pathological_mask', 'pathological_ori_mask'],
+        'Blood通道': ['blood', 'blood_ori', 'blood_mask', 'blood_ori_mask'],
+        'ICD通道': ['icd', 'icd_ori', 'icd_mask', 'icd_ori_mask'],
+        'TMA Cell Density通道': ['tma_cell_density', 'tma_cell_density_ori', 'tma_cell_density_mask', 'tma_cell_density_ori_mask']
+    }
+
+def print_available_channels():
+    """
+    打印所有可用的通道类型，用于调试和帮助
+    """
+    channels = get_available_channels()
+    print("🔍 可用的通道类型:")
+    print("=" * 50)
+    
+    for category, channel_list in channels.items():
+        print(f"\n📁 {category}:")
+        for channel in channel_list:
+            print(f"  • {channel}")
+    
+    print("\n💡 使用示例:")
+    print("  • 单个通道: ['wsi', 'clinical']")
+    print("  • 组合通道: ['tma', 'blood_mask']")
+    print("  • 完整路径: ['wsi=features', 'clinical=val']")
+
 def main(args, configs):
     """主函数"""
     # 从配置中获取参数
@@ -223,6 +372,17 @@ def main(args, configs):
     
     # 构建channels列表
     channels = args.target_channels
+    
+    # 测试parse_channels函数
+    try:
+        parsed_channels = parse_channels(channels)
+        print(f"✅ 成功解析通道: {len(parsed_channels)} 个")
+        print(f"📋 原始通道: {channels}")
+        print(f"🔗 解析后通道: {parsed_channels}")
+    except ValueError as e:
+        print(f"❌ 通道解析错误: {e}")
+        print_available_channels()
+        return
     
     # 构建align_channels映射
     align_channels = _parse_aligned_channels(args.aligned_channels)
@@ -409,7 +569,7 @@ parser.add_argument('--lr_scheduler_params', type=str, default='{}',
                     help='学习率调度器参数 (JSON字符串，默认: {})')
 
 # 模型相关参数
-parser.add_argument('--model_type', type=str, choices=['clam', 'auc_clam', 'clam_svd_loss', 'mil', 'gate_shared_mil', 'gate_mil', 'gate_auc_mil', 'gate_mil_detach'], 
+parser.add_argument('--model_type', type=str, choices=['clam', 'clam_detach', 'auc_clam', 'gate_clam_svd_detach', 'mil', 'gate_shared_mil', 'gate_mil', 'gate_auc_mil', 'gate_mil_detach'], 
                     default='clam', help='模型类型 (default: clam)')
 parser.add_argument('--input_dim', type=int, default=1024,
                     help='输入维度')
@@ -420,7 +580,7 @@ parser.add_argument('--n_classes', type=int, default=2,
 parser.add_argument('--base_loss_fn', type=str, choices=['svm', 'ce'], default='ce',
                     help='slide级别分类损失函数 (default: ce)')
 
-# CLAM相关参数
+# CLAM 相关参数
 parser.add_argument('--gate', action='store_true', default=True, 
                     help='CLAM: 使用门控注意力机制')
 parser.add_argument('--base_weight', type=float, default=0.7,
@@ -442,17 +602,21 @@ parser.add_argument('--return_features', action='store_true', default=False,
 parser.add_argument('--attention_only', action='store_true', default=False, 
                     help='CLAM: 仅返回注意力')
 
-# CLAM_SVD_LOSS相关参数
+# DetachClam
+parser.add_argument('--output_dim', type=int, default=128, 
+                    help='DetachClam: 输出维度')
+
+# GateClamSvdDetach相关参数
 parser.add_argument('--alignment_layer_num', type=int, default=2,
-                    help='CLAM_SVD_LOSS: 对齐层数')
+                    help='GateClamSvdDetach: 对齐层数')
 parser.add_argument('--lambda1', type=float, default=1.0,
-                    help='CLAM_SVD_LOSS: 对齐损失权重')
+                    help='GateClamSvdDetach: 对齐损失权重')
 parser.add_argument('--lambda2', type=float, default=0.0,
-                    help='CLAM_SVD_LOSS: 对齐损失权重')
+                    help='GateClamSvdDetach: 对齐损失权重')
 parser.add_argument('--tau1', type=float, default=0.1,
-                    help='CLAM_SVD_LOSS: 对齐损失权重')
+                    help='GateClamSvdDetach: 对齐损失权重')
 parser.add_argument('--tau2', type=float, default=0.05,
-                    help='CLAM_SVD_LOSS: 对齐损失权重')
+                    help='GateClamSvdDetach: 对齐损失权重')
 
 # GatedMIL相关参数
 parser.add_argument('--confidence_weight', type=float, default=1.0,
@@ -466,6 +630,9 @@ parser.add_argument('--auc_loss_weight', type=float, default=1.0,
 
 # 解析参数
 args = parser.parse_args()
+args.target_channels = parse_channels(args.target_channels)
+args.aligned_channels = parse_channels(args.aligned_channels)
+args.channels_used_in_model = parse_channels(args.channels_used_in_model)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # 设置随机种子

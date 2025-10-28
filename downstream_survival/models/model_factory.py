@@ -7,7 +7,8 @@
 from .clam import CLAM
 from .auc_clam import AUC_CLAM
 from .mil import MIL_fc
-from .clam_svd_loss import CLAM_SVD_LOSS
+from .clam_detach import ClamDetach
+from .gate_clam_svd_detach import GateClamSvdDetach
 from .gate_shared_mil import GateSharedMIL
 from .gate_mil import GateMIL
 from .gate_auc_mil import GateAUCMIL
@@ -28,7 +29,8 @@ class ModelFactory:
         'mil': MIL_fc,
         'clam': CLAM,
         'auc_clam': AUC_CLAM,
-        'clam_svd_loss': CLAM_SVD_LOSS,
+        'clam_detach': ClamDetach,
+        'gate_clam_svd_detach': GateClamSvdDetach,
         'gate_shared_mil': GateSharedMIL,
         'gate_mil': GateMIL,
         'gate_auc_mil': GateAUCMIL,

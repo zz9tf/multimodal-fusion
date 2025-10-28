@@ -715,6 +715,7 @@ class Trainer:
                     results['auc_loss'] = model.group_loss_fn(results)
                     total_loss += results['auc_loss']
                 total_loss = total_loss/batch_size
+                results['total_loss'] = total_loss.item()
                 total_loss.backward()
                 optimizer.step()
                 optimizer.zero_grad()
@@ -732,6 +733,7 @@ class Trainer:
                 results['auc_loss'] = model.group_loss_fn(results)
                 total_loss += results['auc_loss']
             total_loss = total_loss / remaining_batches  # 使用剩余batch数量进行平均
+            results['total_loss'] = total_loss.item()
             total_loss.backward()
             optimizer.step()
             optimizer.zero_grad()
@@ -835,6 +837,7 @@ class Trainer:
         
         if hasattr(model, 'verbose_items'):
             results['is_epoch'] = True
+            results['total_loss'] = val_loss
             items = model.verbose_items(results)
             if len(items) > 0:
                 print('- ' + ' '.join([f'{key}: {value:.4f}' for key, value in items]))
@@ -914,6 +917,7 @@ class Trainer:
         
         if hasattr(model, 'verbose_items'):
             results['is_epoch'] = True
+            results['total_loss'] = test_loss
             items = model.verbose_items(results)
             if len(items) > 0:
                 print('- ' + ' '.join([f'{key}: {value:.4f}' for key, value in items]))
