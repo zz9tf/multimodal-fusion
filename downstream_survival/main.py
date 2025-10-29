@@ -65,6 +65,7 @@ def _get_model_specific_config(args):
         'output_dim': args.output_dim,
     }
     svd_config = {
+        'enable_svd': args.enable_svd,
         'alignment_layer_num': args.alignment_layer_num,
         'lambda1': args.lambda1,
         'lambda2': args.lambda2,
@@ -72,6 +73,7 @@ def _get_model_specific_config(args):
         'tau2': args.tau2,
     }
     dynamic_gate_config = {
+        'enable_dynamic_gate': args.enable_dynamic_gate,
         'confidence_weight': args.confidence_weight,
         'feature_weight_weight': args.feature_weight_weight,
     }

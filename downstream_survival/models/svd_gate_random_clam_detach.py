@@ -23,10 +23,10 @@ class SVDGateRandomClamDetach(ClamDetach):
     def __init__(self, config):
         super().__init__(config)
         
-        self.enable_dynamic_gated = config.get('enable_dynamic_gated', True)
+        self.enable_dynamic_gate = config.get('enable_dynamic_gate', True)
         self.enable_svd = config.get('enable_svd', True)
         
-        if self.enable_dynamic_gated:
+        if self.enable_dynamic_gate:
             self._init_dynamic_gated_model()
         if self.enable_svd:
             self.alignment_channels = config.get('alignment_channels', self.used_modality)
@@ -219,13 +219,13 @@ class SVDGateRandomClamDetach(ClamDetach):
                 self.alignment_features = []
             features_dict = self.align_forward(features_dict)
             self.alignment_features.append(features_dict)
-            if self.enable_dynamic_gated:
+            if self.enable_dynamic_gate:
                 result = self.gated_forward(features_dict, label)
                 for key, value in result.items():
                     result_kwargs[f'gated_{key}'] = value
                 features_dict = result['gated_features']
         else:
-            if self.enable_dynamic_gated:
+            if self.enable_dynamic_gate:
                 result = self.gated_forward(features_dict, label)
                 for key, value in result.items():
                     result_kwargs[f'gated_{key}'] = value
@@ -273,6 +273,8 @@ class SVDGateRandomClamDetach(ClamDetach):
         """
         计算组损失
         """
+        if not self.enable_svd:
+            return 0.0
         features = [] # [batch_size, feature_dim, num_modalities]
         keys = sorted(self.alignment_features[0].keys())
         for feature_dict in self.alignment_features:
@@ -285,6 +287,8 @@ class SVDGateRandomClamDetach(ClamDetach):
         # aggregate across batches: [num_batches, feature_dim, num_modalities]
         features = torch.stack(features, dim=0)
         svd_loss, svd_values = self._compute_rank1_loss_with_metrics(features)
+        result['svd_loss'] = svd_loss
+        result['svd_values'] = svd_values
         return svd_loss
 
     def verbose_items(self, result: Dict[str, float]) -> List[Tuple[str, float]]:
