@@ -10,11 +10,11 @@ source ~/zheng/miniconda3/etc/profile.d/conda.sh
 conda activate multimodal-fusion
 cd /home/zheng/zheng/multimodal-fusion/downstream_survival
 
-CUDA_DEVICE=1
+CUDA_DEVICE=0
 export CUDA_VISIBLE_DEVICES="$CUDA_DEVICE"
 
 # 数据相关参数
-DATA_ROOT_DIR="/home/zheng/zheng/public/2"
+DATA_ROOT_DIR="/home/zheng/zheng/public/1"
 RESULTS_DIR="/home/zheng/zheng/multimodal-fusion/downstream_survival/results"
 CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv"
 TARGET_CHANNELS="wsi tma clinical pathological blood icd tma_cell_density"
@@ -49,6 +49,7 @@ CHANNELS_USED_IN_MODEL="wsi tma clinical pathological blood icd tma_cell_density
 OUTPUT_DIM=128
 
 # SVD参数
+ENABLE_SVD="--enable_svd"
 ALIGNMENT_LAYER_NUM=2
 LAMBDA1=0.1
 LAMBDA2=0.1
@@ -91,6 +92,7 @@ python main.py \
     --inst_number $INST_NUMBER \
     --channels_used_in_model $CHANNELS_USED_IN_MODEL \
     --output_dim $OUTPUT_DIM \
+    $ENABLE_SVD \
     --alignment_layer_num $ALIGNMENT_LAYER_NUM \
     --lambda1 $LAMBDA1 \
     --lambda2 $LAMBDA2 \

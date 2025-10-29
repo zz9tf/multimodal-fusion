@@ -50,6 +50,7 @@ CHANNELS_USED_IN_MODEL="wsi tma clinical pathological blood icd tma_cell_density
 OUTPUT_DIM=128
 
 # SVD特定参数 - 启用SVD对齐
+ENABLE_SVD="--enable_svd"
 ALIGNMENT_LAYER_NUM=2
 LAMBDA1=0.1
 LAMBDA2=0.1
@@ -91,6 +92,7 @@ python main.py \
     --inst_number $INST_NUMBER \
     --channels_used_in_model $CHANNELS_USED_IN_MODEL \
     --output_dim $OUTPUT_DIM \
+    $ENABLE_SVD \
     --alignment_layer_num $ALIGNMENT_LAYER_NUM \
     --lambda1 $LAMBDA1 \
     --lambda2 $LAMBDA2 \
