@@ -42,103 +42,90 @@ def _get_model_specific_config(args):
     """根据模型类型获取特定配置"""
     model_type = args.model_type
     
+    mil_config = {
+        'model_size': args.model_size,
+        'channels_used_in_model': args.channels_used_in_model,
+        'return_features': args.return_features,
+    }
+    clam_config = {
+        'gate': args.gate,
+        'base_weight': args.base_weight,
+        'inst_loss_fn': args.inst_loss_fn,
+        'model_size': args.model_size,
+        'subtyping': args.subtyping,
+        'inst_number': args.inst_number,
+        'channels_used_in_model': args.channels_used_in_model,
+        'return_features': args.return_features,
+        'attention_only': args.attention_only
+    }
+    auc_config = {
+        'auc_loss_weight': args.auc_loss_weight,
+    }
+    transfer_layer_config = {
+        'output_dim': args.output_dim,
+    }
+    svd_config = {
+        'alignment_layer_num': args.alignment_layer_num,
+        'lambda1': args.lambda1,
+        'lambda2': args.lambda2,
+        'tau1': args.tau1,
+        'tau2': args.tau2,
+    }
+    dynamic_gate_config = {
+        'confidence_weight': args.confidence_weight,
+        'feature_weight_weight': args.feature_weight_weight,
+    }
+    random_loss_config = {
+        'enable_random_loss': args.enable_random_loss,
+        'weight_random_loss': args.weight_random_loss,
+    }
+    
     if model_type == 'clam':
         return {
-            'gate': args.gate,
-            'base_weight': args.base_weight,
-            'inst_loss_fn': args.inst_loss_fn,
-            'model_size': args.model_size,
-            'subtyping': args.subtyping,
-            'inst_number': args.inst_number,
-            'channels_used_in_model': args.channels_used_in_model,
-            'return_features': args.return_features,
-            'attention_only': args.attention_only
+            **clam_config,
         }
     elif model_type == 'auc_clam':
         return {
-            'gate': args.gate,
-            'base_weight': args.base_weight,
-            'inst_loss_fn': args.inst_loss_fn,
-            'model_size': args.model_size,
-            'subtyping': args.subtyping,
-            'inst_number': args.inst_number,
-            'channels_used_in_model': args.channels_used_in_model,
-            'return_features': args.return_features,
-            'attention_only': args.attention_only,
-            'auc_loss_weight': args.auc_loss_weight,
+            **clam_config,
+            **auc_config,
         }
     elif model_type == 'mil':
         return {
-            'model_size': args.model_size,
-            'channels_used_in_model': args.channels_used_in_model,
-            'return_features': args.return_features,
+            **mil_config,
         }
     elif model_type == 'clam_detach':
         return {
-            'gate': args.gate,
-            'base_weight': args.base_weight,
-            'inst_loss_fn': args.inst_loss_fn,
-            'model_size': args.model_size,
-            'subtyping': args.subtyping,
-            'inst_number': args.inst_number,
-            'channels_used_in_model': args.channels_used_in_model,
-            'return_features': args.return_features,
-            'attention_only': args.attention_only,
-            'output_dim': args.output_dim,
+            **clam_config,
+            **transfer_layer_config,
         }
-    elif model_type == 'gate_clam_svd_detach':
+    elif model_type == 'svd_gate_random_clam_detach':
         return {
-            'gate': args.gate,
-            'base_weight': args.base_weight,
-            'inst_loss_fn': args.inst_loss_fn,
-            'model_size': args.model_size,
-            'subtyping': args.subtyping,
-            'inst_number': args.inst_number,
-            'channels_used_in_model': args.channels_used_in_model,
-            'return_features': args.return_features,
-            'attention_only': args.attention_only,
-            'alignment_layer_num': args.alignment_layer_num,
-            'lambda1': args.lambda1,
-            'lambda2': args.lambda2,
-            'tau1': args.tau1,
-            'tau2': args.tau2,
+            **clam_config,
+            **transfer_layer_config,
+            **svd_config,
+            **dynamic_gate_config,
+            **random_loss_config,
         }
     elif model_type == 'gate_shared_mil':
         return {
-            'model_size': args.model_size,
-            'channels_used_in_model': args.channels_used_in_model,
-            'return_features': args.return_features,
-            'confidence_weight': args.confidence_weight,
-            'feature_weight_weight': args.feature_weight_weight,
-            'channels_used_in_model': args.channels_used_in_model,
+            **mil_config,
+            **dynamic_gate_config,
         }
     elif model_type == 'gate_mil':
         return {
-            'model_size': args.model_size,
-            'channels_used_in_model': args.channels_used_in_model,
-            'return_features': args.return_features,
-            'confidence_weight': args.confidence_weight,
-            'feature_weight_weight': args.feature_weight_weight,
-            'channels_used_in_model': args.channels_used_in_model,
+            **mil_config,
+            **dynamic_gate_config,
         }
     elif model_type == 'gate_auc_mil':
         return {
-            'model_size': args.model_size,
-            'channels_used_in_model': args.channels_used_in_model,
-            'return_features': args.return_features,
-            'confidence_weight': args.confidence_weight,
-            'feature_weight_weight': args.feature_weight_weight,
-            'channels_used_in_model': args.channels_used_in_model,
-            'auc_loss_weight': args.auc_loss_weight,
+            **mil_config,
+            **dynamic_gate_config,
+            **auc_config,
         }
     elif model_type == 'gate_mil_detach':
         return {
-            'model_size': args.model_size,
-            'channels_used_in_model': args.channels_used_in_model,
-            'return_features': args.return_features,
-            'confidence_weight': args.confidence_weight,
-            'feature_weight_weight': args.feature_weight_weight,
-            'channels_used_in_model': args.channels_used_in_model,
+            **mil_config,
+            **dynamic_gate_config,
         }
     else:
         # 为其他模型类型返回空配置，可以根据需要扩展
@@ -173,47 +160,151 @@ def seed_torch(seed=7):
     torch.backends.cudnn.benchmark = False
     torch.backends.cudnn.deterministic = True
 
-def create_k_fold_splits(dataset, k=10, seed=42):
-    """创建k-fold交叉验证分割（使用sklearn的StratifiedKFold）"""
+def load_dataset_split(dataset_split_path):
+    """
+    从JSON文件加载数据集分割信息
+    
+    Args:
+        dataset_split_path (str): 数据集分割JSON文件路径
+        
+    Returns:
+        dict: 包含train/test分割的字典，格式为 {'train': [patient_ids], 'test': [patient_ids]}
+    """
+    if not os.path.exists(dataset_split_path):
+        raise FileNotFoundError(f"数据集分割文件不存在: {dataset_split_path}")
+    
+    with open(dataset_split_path, 'r') as f:
+        split_data = json.load(f)
+    
+    # 将JSON数据转换为train/test分割
+    train_patients = []
+    test_patients = []
+    
+    for item in split_data:
+        patient_id = item['patient_id']
+        dataset_type = item['dataset']
+        
+        if dataset_type == 'training':
+            train_patients.append(patient_id)
+        elif dataset_type == 'test':
+            test_patients.append(patient_id)
+    
+    return {
+        'train': train_patients,
+        'test': test_patients
+    }
+
+def create_k_fold_splits(dataset, k=10, seed=42, fixed_test_split=None):
+    """
+    创建k-fold交叉验证分割
+    
+    Args:
+        dataset: 数据集对象
+        k (int): fold数量
+        seed (int): 随机种子
+        fixed_test_split (dict, optional): 固定的测试集分割，格式为 {'train': [patient_ids], 'test': [patient_ids]}
+    
+    Returns:
+        list: 包含每个fold的train/val/test索引的列表
+    """
     from sklearn.model_selection import StratifiedKFold
     
-    # 获取所有样本的标签
+    # 获取所有样本的标签和患者ID
     labels = []
+    patient_ids = []
+    
     for i in range(len(dataset)):
+        # 获取样本数据
+        sample = dataset[i]
+        
         # 从数据集中获取标签
         if hasattr(dataset, 'get_label'):
             label = dataset.get_label(i)
+        elif isinstance(sample, dict) and 'label' in sample:
+            label = sample['label']
         else:
-            # 如果是字典格式，获取label
-            sample = dataset[i]
-            if isinstance(sample, dict) and 'label' in sample:
-                label = sample['label']
-            else:
-                # 假设是元组格式 (data, label)
-                _, label = sample
+            # 假设是元组格式 (data, label)
+            _, label = sample
+        
         labels.append(label)
+        
+        # 获取患者ID（假设数据集有get_patient_id方法，或者从样本中获取）
+        if hasattr(dataset, 'get_patient_id'):
+            patient_id = dataset.get_patient_id(i)
+        elif isinstance(sample, dict) and 'patient_id' in sample:
+            patient_id = sample['patient_id']
+        else:
+            # 如果没有患者ID，使用索引作为ID
+            patient_id = str(i)
+        patient_ids.append(patient_id)
     
     labels = np.array(labels)
-    
-    # 创建分层k-fold分割
-    skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=seed)
+    patient_ids = np.array(patient_ids)
     
     splits = []
-    for fold_idx, (train_idx, test_idx) in enumerate(skf.split(range(len(dataset)), labels)):
-        # 将测试集进一步分为验证集和测试集
-        test_labels = labels[test_idx]
-        val_test_skf = StratifiedKFold(n_splits=2, shuffle=True, random_state=seed)
-        val_idx, test_idx_final = next(val_test_skf.split(test_idx, test_labels))
+    
+    if fixed_test_split is not None:
+        # 使用固定的测试集分割
+        print(f"🔒 使用固定测试集分割")
+        print(f"📊 固定训练集患者数: {len(fixed_test_split['train'])}")
+        print(f"📊 固定测试集患者数: {len(fixed_test_split['test'])}")
         
-        # 转换为实际索引
-        val_idx = test_idx[val_idx]
-        test_idx_final = test_idx[test_idx_final]
+        # 找到测试集对应的索引
+        test_indices = []
+        for test_patient_id in fixed_test_split['test']:
+            test_idx = np.where(patient_ids == test_patient_id)[0]
+            if len(test_idx) > 0:
+                test_indices.extend(test_idx)
         
-        splits.append({
-            'train': train_idx,
-            'val': val_idx, 
-            'test': test_idx_final
-        })
+        test_indices = np.array(test_indices)
+        
+        # 找到训练集对应的索引
+        train_indices = []
+        for train_patient_id in fixed_test_split['train']:
+            train_idx = np.where(patient_ids == train_patient_id)[0]
+            if len(train_idx) > 0:
+                train_indices.extend(train_idx)
+        
+        train_indices = np.array(train_indices)
+        
+        # 在训练集上进行k-fold交叉验证
+        train_labels = labels[train_indices]
+        
+        # 创建分层k-fold分割
+        skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=seed)
+        
+        for fold_idx, (fold_train_idx, fold_val_idx) in enumerate(skf.split(train_indices, train_labels)):
+            # 转换为实际索引
+            actual_train_idx = train_indices[fold_train_idx]
+            actual_val_idx = train_indices[fold_val_idx]
+            
+            splits.append({
+                'train': actual_train_idx,
+                'val': actual_val_idx,
+                'test': test_indices  # 测试集始终相同
+            })
+    else:
+        # 原始的分割方式：将测试集进一步分为验证集和测试集
+        print(f"🔄 使用传统k-fold分割")
+        
+        # 创建分层k-fold分割
+        skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=seed)
+        
+        for fold_idx, (train_idx, test_idx) in enumerate(skf.split(range(len(dataset)), labels)):
+            # 将测试集进一步分为验证集和测试集
+            test_labels = labels[test_idx]
+            val_test_skf = StratifiedKFold(n_splits=2, shuffle=True, random_state=seed)
+            val_idx, test_idx_final = next(val_test_skf.split(test_idx, test_labels))
+            
+            # 转换为实际索引
+            val_idx = test_idx[val_idx]
+            test_idx_final = test_idx[test_idx_final]
+            
+            splits.append({
+                'train': train_idx,
+                'val': val_idx, 
+                'test': test_idx_final
+            })
     
     return splits
 
@@ -407,7 +498,22 @@ def main(args, configs):
 
     # 创建k-fold分割
     print(f'\nCreating {args.k}-fold cross-validation splits...')
-    splits = create_k_fold_splits(dataset, k=args.k, seed=args.seed)
+    print(f"🔧 分割模式: {args.split_mode}")
+    
+    # 检查是否使用固定测试集
+    fixed_test_split = None
+    if args.split_mode == 'fixed':
+        if not args.dataset_split_path:
+            raise ValueError("❌ 使用固定测试集模式时，必须提供 --dataset_split_path 参数")
+        print(f"📁 加载固定测试集分割: {args.dataset_split_path}")
+        fixed_test_split = load_dataset_split(args.dataset_split_path)
+        print(f"✅ 成功加载固定测试集分割")
+    elif args.split_mode == 'random':
+        print(f"🎲 使用随机分割模式")
+    else:
+        raise ValueError(f"❌ 不支持的分割模式: {args.split_mode}")
+    
+    splits = create_k_fold_splits(dataset, k=args.k, seed=args.seed, fixed_test_split=fixed_test_split)
     print(f'✅ Created {len(splits)} folds')
 
     # 确定fold范围
@@ -549,6 +655,10 @@ parser.add_argument('--seed', type=int, default=1,
                     help='随机种子 (default: 1)')
 parser.add_argument('--k', type=int, default=10, 
                     help='fold数量 (default: 10)')
+parser.add_argument('--split_mode', type=str, choices=['random', 'fixed'], default='random',
+                    help='数据集分割模式: random=随机分割, fixed=固定测试集分割 (default: random)')
+parser.add_argument('--dataset_split_path', type=str, default=None,
+                    help='固定测试集分割JSON文件路径 (仅在split_mode=fixed时使用)')
 parser.add_argument('--max_epochs', type=int, default=200,
                     help='最大训练轮数 (default: 200)')
 parser.add_argument('--lr', type=float, default=1e-4,
@@ -569,7 +679,7 @@ parser.add_argument('--lr_scheduler_params', type=str, default='{}',
                     help='学习率调度器参数 (JSON字符串，默认: {})')
 
 # 模型相关参数
-parser.add_argument('--model_type', type=str, choices=['clam', 'clam_detach', 'auc_clam', 'gate_clam_svd_detach', 'mil', 'gate_shared_mil', 'gate_mil', 'gate_auc_mil', 'gate_mil_detach'], 
+parser.add_argument('--model_type', type=str, choices=['clam', 'clam_detach', 'auc_clam', 'svd_gate_random_clam_detach', 'mil', 'gate_shared_mil', 'gate_mil', 'gate_auc_mil', 'gate_mil_detach'], 
                     default='clam', help='模型类型 (default: clam)')
 parser.add_argument('--input_dim', type=int, default=1024,
                     help='输入维度')
@@ -602,32 +712,41 @@ parser.add_argument('--return_features', action='store_true', default=False,
 parser.add_argument('--attention_only', action='store_true', default=False, 
                     help='CLAM: 仅返回注意力')
 
-# DetachClam
+# Transfer layer
 parser.add_argument('--output_dim', type=int, default=128, 
-                    help='DetachClam: 输出维度')
+                    help='Transfer layer: 模态统一的输出维度')
 
-# GateClamSvdDetach相关参数
+# SVD相关参数
+parser.add_argument('--enable_svd', action='store_true', default=False, 
+                    help='SVD: 启用SVD')
 parser.add_argument('--alignment_layer_num', type=int, default=2,
-                    help='GateClamSvdDetach: 对齐层数')
+                    help='SVD: 对齐层数')
 parser.add_argument('--lambda1', type=float, default=1.0,
-                    help='GateClamSvdDetach: 对齐损失权重')
+                    help='SVD: 对齐损失权重')
 parser.add_argument('--lambda2', type=float, default=0.0,
-                    help='GateClamSvdDetach: 对齐损失权重')
+                    help='SVD: 对齐损失权重')
 parser.add_argument('--tau1', type=float, default=0.1,
-                    help='GateClamSvdDetach: 对齐损失权重')
+                    help='SVD: 对齐损失权重')
 parser.add_argument('--tau2', type=float, default=0.05,
-                    help='GateClamSvdDetach: 对齐损失权重')
+                    help='SVD: 对齐损失权重')
 
-# GatedMIL相关参数
+# Dynamic Gate相关参数
+parser.add_argument('--enable_dynamic_gate', action='store_true', default=False, 
+                    help='Dynamic Gate: 启用动态门控')
 parser.add_argument('--confidence_weight', type=float, default=1.0,
-                    help='GatedMIL: 置信度权重')
+                    help='Dynamic Gate: 置信度权重')
 parser.add_argument('--feature_weight_weight', type=float, default=1.0,
-                    help='GatedMIL: 特征权重权重')
+                    help='Dynamic Gate: 特征权重权重')
 
-# AUC_CLAM & GateAUCMIL相关参数
+# AUC相关参数
 parser.add_argument('--auc_loss_weight', type=float, default=1.0,
-                    help='AUC_CLAM & GateAUCMIL: AUC损失权重')
+                    help='AUC: AUC损失权重')
 
+# Random Loss相关参数
+parser.add_argument('--enable_random_loss', action='store_true', default=False, 
+                    help='Random Loss: 启用随机损失')
+parser.add_argument('--weight_random_loss', type=float, default=0.1, 
+                    help='Random Loss: 随机损失权重')
 # 解析参数
 args = parser.parse_args()
 args.target_channels = parse_channels(args.target_channels)
@@ -662,6 +781,8 @@ configs = {
         'exp_code': args.exp_code,
         'seed': args.seed,
         'num_splits': args.k,
+        'split_mode': args.split_mode,
+        'dataset_split_path': args.dataset_split_path,
         'max_epochs': args.max_epochs,
         'lr': args.lr,
         'reg': args.reg,

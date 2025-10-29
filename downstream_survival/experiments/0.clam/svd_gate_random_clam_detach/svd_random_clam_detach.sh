@@ -1,42 +1,44 @@
 #!/bin/bash
 
 # =============================================================================
-# 环境设置
+# SVD + Random Loss 实验脚本（尽量不启用 Dynamic Gate 的影响）
+# 说明：当前模型默认启用动态门控，为尽量隔离其影响，将权重设为0。
 # =============================================================================
+
+# 环境设置
 source ~/zheng/miniconda3/etc/profile.d/conda.sh
 conda activate multimodal-fusion
 cd /home/zheng/zheng/multimodal-fusion/downstream_survival
 
-CUDA_DEVICE=0
+CUDA_DEVICE=2
 export CUDA_VISIBLE_DEVICES="$CUDA_DEVICE"
 
 # 数据相关参数
-DATA_ROOT_DIR="/home/zheng/zheng/mini2/hancock_data/WSI_UNI_encodings/WSI_PrimaryTumor"
+DATA_ROOT_DIR="/home/zheng/zheng/public/"
 RESULTS_DIR="/home/zheng/zheng/multimodal-fusion/downstream_survival/results"
 CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv"
 TARGET_CHANNELS="wsi tma clinical pathological blood icd tma_cell_density"
 
 # 实验 & 训练参数
-EXP_CODE="all_modality_clam_detach"
+EXP_CODE="svd_random_clam_detach"
 SEED=5678
 K_FOLDS=10
+SPLIT_MODE="random"
 MAX_EPOCHS=200
 LEARNING_RATE=1e-4
 LR_SCHEDULER="plateau"
 LR_SCHEDULER_PARAMS='{"mode": "min", "patience": 15, "factor": 0.5}'
 WEIGHT_DECAY=1e-5
 OPTIMIZER="adam"
-EARLY_STOPPING="--early_stopping"  # 启用早停
+EARLY_STOPPING="--early_stopping"
 BATCH_SIZE=64
 
-# 模型参数
-MODEL_TYPE="clam_detach"
+# 模型与CLAM参数
+MODEL_TYPE="svd_gate_random_clam_detach"
 INPUT_DIM=1024
 DROPOUT=0.25
 N_CLASSES=2
 BASE_LOSS_FN="ce"
-
-# CLAM特定参数
 GATE="--gate"
 BASE_WEIGHT=0.9
 INST_LOSS_FN="ce"
@@ -46,7 +48,19 @@ INST_NUMBER=8
 CHANNELS_USED_IN_MODEL="wsi tma clinical pathological blood icd tma_cell_density"
 OUTPUT_DIM=128
 
-# 运行训练
+# SVD参数
+ALIGNMENT_LAYER_NUM=2
+LAMBDA1=0.1
+LAMBDA2=0.1
+TAU1=1.0
+TAU2=1.0
+
+# Random Loss参数
+ENABLE_RANDOM_LOSS="--enable_random_loss"
+WEIGHT_RANDOM_LOSS=0.1
+
+echo "🚀 开始 SVD + Random Loss 实验..."
+
 python main.py \
     --data_root_dir "$DATA_ROOT_DIR" \
     --results_dir "$RESULTS_DIR" \
@@ -55,6 +69,7 @@ python main.py \
     --exp_code "$EXP_CODE" \
     --seed $SEED \
     --k $K_FOLDS \
+    --split_mode $SPLIT_MODE \
     --max_epochs $MAX_EPOCHS \
     --lr $LEARNING_RATE \
     --lr_scheduler $LR_SCHEDULER \
@@ -76,4 +91,13 @@ python main.py \
     --inst_number $INST_NUMBER \
     --channels_used_in_model $CHANNELS_USED_IN_MODEL \
     --output_dim $OUTPUT_DIM \
+    --alignment_layer_num $ALIGNMENT_LAYER_NUM \
+    --lambda1 $LAMBDA1 \
+    --lambda2 $LAMBDA2 \
+    --tau1 $TAU1 \
+    --tau2 $TAU2 \
+    $ENABLE_RANDOM_LOSS \
+    --enable_svd $ENABLE_SVD \
+    --weight_random_loss $WEIGHT_RANDOM_LOSS
 
+echo "✅ SVD + Random Loss 实验完成!"

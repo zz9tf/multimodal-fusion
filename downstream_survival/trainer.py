@@ -712,8 +712,8 @@ class Trainer:
             if (batch_idx + 1) % batch_size == 0:
                 # 反向传播
                 if hasattr(model, 'group_loss_fn'):
-                    results['auc_loss'] = model.group_loss_fn(results)
-                    total_loss += results['auc_loss']
+                    results['group_loss'] = model.group_loss_fn(results)
+                    total_loss += results['group_loss']
                 total_loss = total_loss/batch_size
                 results['total_loss'] = total_loss.item()
                 total_loss.backward()
@@ -730,8 +730,8 @@ class Trainer:
             remaining_batches = len(loader) % batch_size
             # 反向传播
             if hasattr(model, 'group_loss_fn'):
-                results['auc_loss'] = model.group_loss_fn(results)
-                total_loss += results['auc_loss']
+                results['group_loss'] = model.group_loss_fn(results)
+                total_loss += results['group_loss']
             total_loss = total_loss / remaining_batches  # 使用剩余batch数量进行平均
             results['total_loss'] = total_loss.item()
             total_loss.backward()
@@ -818,7 +818,7 @@ class Trainer:
         
         # 在验证结束时计算AUC损失
         if hasattr(model, 'group_loss_fn') and hasattr(model, 'group_logits') and model.group_logits:
-            results['auc_loss'] = model.group_loss_fn(results)
+            results['group_loss'] = model.group_loss_fn(results)
             logger.batch_log['loss'] += results['auc_loss']
             
         val_loss = logger.batch_log['loss']/len(loader)
@@ -909,8 +909,8 @@ class Trainer:
         
         # 在测试结束时计算AUC损失
         if hasattr(model, 'group_loss_fn') and hasattr(model, 'group_logits') and model.group_logits:
-            results['auc_loss'] = model.group_loss_fn(results)
-            logger.batch_log['loss'] += results['auc_loss']
+            results['group_loss'] = model.group_loss_fn(results)
+            logger.batch_log['loss'] += results['group_loss']
         
         test_loss = logger.batch_log['loss']/len(loader)
         test_acc = logger.get_overall_accuracy()

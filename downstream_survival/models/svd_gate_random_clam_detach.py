@@ -2,9 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .clam_detach import ClamDetach
+import random
 from typing import Dict, List, Tuple, Optional
 
-class GateClamSvdDetach(ClamDetach):
+class SVDGateRandomClamDetach(ClamDetach):
     """
     CLAM 模型
     
@@ -36,7 +37,9 @@ class GateClamSvdDetach(ClamDetach):
             self.lambda2 = config.get('lambda2', 0.1)
             self.loss2_chunk_size = config.get('loss2_chunk_size', None)
             self._init_svd_model()
-        
+        self.enable_random_loss = config.get('enable_random_loss', True)
+        self.weight_random_loss = config.get('weight_random_loss', 0.1)
+    
     def _init_dynamic_gated_model(self):
         self.TCPClassifierCreator = lambda: nn.Sequential(
             nn.Linear(self.output_dim, self.size[1]), 
@@ -64,121 +67,46 @@ class GateClamSvdDetach(ClamDetach):
         ])
         self.alignment_layers = nn.ModuleDict({channel: self.alignment_layers_creator() for channel in self.alignment_channels})
 
-    def gated_forward(self, channel: str, features: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+    def gated_forward(self, features: Dict[str, torch.Tensor], labels: torch.Tensor) -> Dict[str, torch.Tensor]:
         """
         计算门控前向传播
         """
-        logits = self.TCPClassifier[channel](features)
-        logits_loss = torch.mean(self.TCPLogitsLoss_fn(logits, labels))
+        logits_loss = 0.0
+        confidence_loss = 0.0
+        gated_features = {}
         
-        pred = F.softmax(logits, dim = 1)
-        p_target = torch.gather(pred, 1, labels.unsqueeze(1)).view(-1)
-        confidence = self.TCPConfidenceLayer[channel](features.detach())
-        confidence_loss = torch.mean(self.TCPConfidenceLoss_fn(confidence.view(-1), p_target))
+        for channel, feature in features.items():
+            logits = self.TCPClassifier[channel](feature.detach())
+            logits_loss = torch.mean(self.TCPLogitsLoss_fn(logits, labels))
+            
+            confidence = self.TCPConfidenceLayer[channel](feature.detach())
+            pred = F.softmax(logits, dim = 1)
+            p_target = torch.gather(pred, 1, labels.unsqueeze(1)).view(-1)
+            confidence_loss = torch.mean(self.TCPConfidenceLoss_fn(confidence.view(-1), p_target))
+            gated_features[channel] = feature * confidence
+            logits_loss += logits_loss
+            confidence_loss += confidence_loss
         
         return {
-            'gated_features': features * confidence,
-            'logits_loss': logits_loss,
-            'confidence_loss': confidence_loss,
+            'gated_features': gated_features,
+            'gated_logits_loss': logits_loss,
+            'gated_confidence_loss': confidence_loss,
         }
     
-    def align_forward(self, channel: str, features: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+    def align_forward(self, features: Dict[str, torch.Tensor], labels: torch.Tensor) -> Dict[str, torch.Tensor]:
         """
         计算对齐前向传播
         """
-        features = self.alignment_layers[channel](features)
-        loss, svd_values = self._compute_rank1_loss_with_metrics(features, labels)
-        return {
-            'aligned_features': features,
-            'loss': loss,
-            'svd_values': svd_values,
-        }
-    
-    def forward(self, input_data, label):
-        """
-        统一的前向传播接口
-        
-        Args:
-            input_data: 输入数据，可以是：
-                - torch.Tensor: 单模态特征 [N, D]
-                - Dict[str, torch.Tensor]: 多模态数据字典
-            label: 标签（用于实例评估）
-                
-        Returns:
-            Dict[str, Any]: 统一格式的结果字典
-        """
-        input_data, modalities_used_in_model = self._process_input_data(input_data)
-        # 初始化结果字典
-        result_kwargs = {}
-        
-        # 初始化融合特征
-        features_dict = {}
         aligned_features = {}
-        dynamic_gated_features = {}
-        for channel in modalities_used_in_model:
-            if channel == 'wsi=features':
-                clam_result_kwargs = self._clam_forward(channel, input_data[channel], label)
-                for key, value in clam_result_kwargs.items():
-                    result_kwargs[f'{channel}_{key}'] = value
-                features = clam_result_kwargs['features']
-                features_dict[channel] = features
-                if self.enable_svd:
-                    features = self.align_forward(features.detach(), label)
-                    aligned_features[channel] = features
-                if self.enable_dynamic_gated:
-                    result = self.gated_forward(channel, features.detach(), label)
-                    for key, value in result.items():
-                        result_kwargs[f'{channel}_{key}'] = value
-                    dynamic_gated_features[channel] = result['gated_features']
-            elif channel == 'tma=features':
-                clam_result_kwargs = self._clam_forward(channel, input_data[channel], label)
-                for key, value in clam_result_kwargs.items():
-                    result_kwargs[f'{channel}_{key}'] = value
-                features = clam_result_kwargs['features']
-                features_dict[channel] = features
-                if self.enable_svd:
-                    features = self.align_forward(features.detach(), label)
-                    aligned_features[channel] = features
-                if self.enable_dynamic_gated:
-                    result = self.gated_forward(channel, features.detach(), label)
-                    for key, value in result.items():
-                        result_kwargs[f'{channel}_{key}'] = value
-                    dynamic_gated_features[channel] = result['gated_features']
-            else:
-                if channel not in self.transfer_layer:
-                    self.transfer_layer[channel] = self.create_transfer_layer(input_data[channel].shape[1])
-                features = self.transfer_layer[channel](input_data[channel])
-                features_dict[channel] = features
-                if self.enable_svd:
-                    features = self.align_forward(features.detach(), label)
-                    aligned_features[channel] = features
-                if self.enable_dynamic_gated:
-                    result = self.gated_forward(channel, features.detach(), label)
-                    for key, value in result.items():
-                        result_kwargs[f'{channel}_{key}'] = value
-                    dynamic_gated_features[channel] = result['gated_features']
-                
-        if self.enable_svd:
-            if self.enable_dynamic_gated:
-                h = torch.cat(list(dynamic_gated_features.values()), dim=1).detach.to(self.device)
-            else:
-                h = torch.cat(list(aligned_features.values()), dim=1).to(self.device)
-        else:
-            if self.enable_dynamic_gated:
-                h = torch.cat(list(dynamic_gated_features.values()), dim=1).to(self.device)
-            else:
-                h = torch.cat(list(features_dict.values()), dim=1).to(self.device)
-
-        logits = self.fusion_prediction(h.detach())
-        Y_prob = F.softmax(logits, dim = 1)
-        Y_hat = torch.topk(logits, 1, dim = 1)[1]
+        for channel, feature in features.items():
+            aligned_features[channel] = self.alignment_layers[channel](feature)
+        loss, svd_values = self._compute_rank1_loss_with_metrics(aligned_features, labels)
+        return {
+            'aligned_features': aligned_features,
+            'align_loss': loss,
+            'align_svd_values': svd_values,
+        }
         
-        # 更新结果字典
-        result_kwargs['Y_prob'] = Y_prob
-        result_kwargs['Y_hat'] = Y_hat
-        
-        return self._create_result_dict(logits, Y_prob, Y_hat, **result_kwargs)
-
     def _compute_rank1_loss_with_metrics(self, aligned_features: Dict[str, torch.Tensor], 
                                           aligned_negatives: Optional[Dict[str, torch.Tensor]] = None):
         """
@@ -258,25 +186,114 @@ class GateClamSvdDetach(ClamDetach):
         total_loss = loss1 + self.lambda1 * loss2 + self.lambda2 * loss_IM
         return total_loss, svd_values
     
+    def forward(self, input_data, label):
+        """
+        统一的前向传播接口
+        
+        Args:
+            input_data: 输入数据，可以是：
+                - torch.Tensor: 单模态特征 [N, D]
+                - Dict[str, torch.Tensor]: 多模态数据字典
+            label: 标签（用于实例评估）
+                
+        Returns:
+            Dict[str, Any]: 统一格式的结果字典
+        """
+        input_data, modalities_used_in_model = self._process_input_data(input_data)
+        # 初始化结果字典
+        result_kwargs = {}
+        
+        # 初始化融合特征
+        features_dict = {}
+        for channel in modalities_used_in_model:
+            if channel == 'wsi=features':
+                clam_result_kwargs = self._clam_forward(channel, input_data[channel], label)
+                for key, value in clam_result_kwargs.items():
+                    result_kwargs[f'{channel}_{key}'] = value
+                features_dict[channel] = clam_result_kwargs['features'].detach()
+            elif channel == 'tma=features':
+                clam_result_kwargs = self._clam_forward(channel, input_data[channel], label)
+                for key, value in clam_result_kwargs.items():
+                    result_kwargs[f'{channel}_{key}'] = value
+                features_dict[channel] = clam_result_kwargs['features'].detach()
+            else:
+                if channel not in self.transfer_layer:
+                    self.transfer_layer[channel] = self.create_transfer_layer(input_data[channel].shape[1])
+                features_dict[channel] = self.transfer_layer[channel](input_data[channel]).detach()
+        
+        if self.enable_svd:
+            if not hasattr(self, 'alignment_features'):
+                self.alignment_features = []
+            result = self.align_forward(features_dict, label)
+            for key, value in result.items():
+                result_kwargs[f'align_{key}'] = value
+            features_dict = result['aligned_features']
+            self.alignment_features.append(features_dict)
+            if self.enable_dynamic_gated:
+                result = self.gated_forward(features_dict, label)
+                for key, value in result.items():
+                    result_kwargs[f'gated_{key}'] = value
+                features_dict = result['gated_features']
+        else:
+            if self.enable_dynamic_gated:
+                result = self.gated_forward(features_dict, label)
+                for key, value in result.items():
+                    result_kwargs[f'gated_{key}'] = value
+                features_dict = result['gated_features']
+        
+        if self.enable_random_loss:
+            drop_modality = random.sample(list(features_dict.keys()), random.randint(1, len(features_dict)-1))
+            h_partial = torch.cat([features_dict[modality] for modality in features_dict.keys() if modality not in drop_modality], dim=1).to(self.device)
+            logits = self.fusion_prediction(h_partial.detach())
+            result_kwargs['random_partial_loss'] = self.base_loss_fn(logits, label)
+            
+        h = torch.cat(list(features_dict.values()), dim=1).to(self.device)
+        logits = self.fusion_prediction(h.detach())
+        Y_prob = F.softmax(logits, dim = 1)
+        Y_hat = torch.topk(logits, 1, dim = 1)[1]
+        
+        # 更新结果字典
+        result_kwargs['Y_prob'] = Y_prob
+        result_kwargs['Y_hat'] = Y_hat
+        
+        return self._create_result_dict(logits, Y_prob, Y_hat, **result_kwargs)
+
     def loss_fn(self, logits: torch.Tensor, labels: torch.Tensor, result: Dict[str, float]) -> torch.Tensor:
         """
         计算损失
         """
         total_loss = 0.0
-        if 'wsi=features_clam_bag_loss' in result:
-            total_loss += result['wsi=features_clam_bag_loss']
-        if 'tma=features_clam_bag_loss' in result:
-            total_loss += result['tma=features_clam_bag_loss']
-        return self.base_loss_fn(logits, labels) + total_loss
+        for key, value in result.items():
+            if key.endswith('_loss'):
+                total_loss += value
+        base_loss = self.base_loss_fn(logits, labels)
+        if self.enable_random_loss:
+            total_loss += torch.max(0, base_loss - result['random_partial_loss'])
+        return base_loss + total_loss
+
+    def group_loss_fn(self, result: Dict[str, float]) -> torch.Tensor:
+        """
+        计算组损失
+        """
+        features = [] # [batch_size, feature_dim, num_modalities]
+        keys = sorted(self.alignment_features[0].keys())
+        for feature_dict in self.alignment_features:
+            feature = []
+            for key in keys:
+                feature.append(feature_dict[key])
+            features.append(torch.stack(feature, dim=-1).squeeze(0))
+        features = torch.stack(features, dim=0)
+        svd_loss, svd_values = self._compute_rank1_loss_with_metrics(features)
+        return svd_loss
 
     def verbose_items(self, result: Dict[str, float]) -> List[Tuple[str, float]]:
         """
         打印结果
         """
         verbose_list = []
-        if 'wsi=features_clam_bag_loss' in result:
-            verbose_list.append(('wsi=features_clam_bag_loss', result['wsi=features_clam_bag_loss']))
-        if 'tma=features_clam_bag_loss' in result:
-            verbose_list.append(('tma=features_clam_bag_loss', result['tma=features_clam_bag_loss']))
-        verbose_list.append(('total_loss', result['total_loss']))
+        for key, value in result.items():
+            if key.endswith('_loss'):
+                verbose_list.append((key, value))
+            elif key.endswith('_svd_values'):
+                verbose_list.append((key, value))
         return verbose_list

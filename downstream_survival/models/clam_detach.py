@@ -235,7 +235,9 @@ class ClamDetach(BaseModel):
                 if f'{channel_name}=mask' in input_data:
                     input_data[channel] = input_data[channel] * input_data[f'{channel_name}=mask'].squeeze(0).to(self.device)
                 modalities_used_in_model.add(channel)
-        input_data['tma=features'] = torch.cat(tma_features, dim=0).to(self.device)
+        
+        if len(tma_features) > 0:
+            input_data['tma=features'] = torch.cat(tma_features, dim=0).to(self.device)
         
         return input_data, modalities_used_in_model
     
@@ -304,7 +306,7 @@ class ClamDetach(BaseModel):
             result_kwargs[f'total_inst_loss'] = total_inst_loss
             result_kwargs[f'inst_labels'] = np.array(all_targets)
             result_kwargs[f'inst_preds'] = np.array(all_preds)
-        result_kwargs['clam_bag_loss'] = self.clam_loss(logits, label, result_kwargs)
+        result_kwargs['clam_loss'] = self.clam_loss(logits, label, result_kwargs)
         return result_kwargs
     
     def clam_loss(self, logits: torch.Tensor, labels: torch.Tensor, result: Dict[str, float]) -> torch.Tensor:
@@ -369,10 +371,10 @@ class ClamDetach(BaseModel):
         计算损失
         """
         total_loss = 0.0
-        if 'wsi=features_clam_bag_loss' in result:
-            total_loss += result['wsi=features_clam_bag_loss']
-        if 'tma=features_clam_bag_loss' in result:
-            total_loss += result['tma=features_clam_bag_loss']
+        if 'wsi=features_clam_loss' in result:
+            total_loss += result['wsi=features_clam_loss']
+        if 'tma=features_clam_loss' in result:
+            total_loss += result['tma=features_clam_loss']
         return self.base_loss_fn(logits, labels) + total_loss
 
     def verbose_items(self, result: Dict[str, float]) -> List[Tuple[str, float]]:
@@ -380,9 +382,9 @@ class ClamDetach(BaseModel):
         打印结果
         """
         verbose_list = []
-        if 'wsi=features_clam_bag_loss' in result:
-            verbose_list.append(('wsi=features_clam_bag_loss', result['wsi=features_clam_bag_loss']))
-        if 'tma=features_clam_bag_loss' in result:
-            verbose_list.append(('tma=features_clam_bag_loss', result['tma=features_clam_bag_loss']))
+        if 'wsi=features_clam_loss' in result:
+            verbose_list.append(('wsi=features_clam_loss', result['wsi=features_clam_loss']))
+        if 'tma=features_clam_loss' in result:
+            verbose_list.append(('tma=features_clam_loss', result['tma=features_clam_loss']))
         verbose_list.append(('total_loss', result['total_loss']))
         return verbose_list
