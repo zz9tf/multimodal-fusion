@@ -93,22 +93,17 @@ class SVDGateRandomClamDetach(ClamDetach):
             'gated_confidence_loss': confidence_loss,
         }
     
-    def align_forward(self, features: Dict[str, torch.Tensor], labels: torch.Tensor) -> Dict[str, torch.Tensor]:
+    def align_forward(self, features: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """
         计算对齐前向传播
         """
         aligned_features = {}
         for channel, feature in features.items():
             aligned_features[channel] = self.alignment_layers[channel](feature)
-        loss, svd_values = self._compute_rank1_loss_with_metrics(aligned_features, labels)
-        return {
-            'aligned_features': aligned_features,
-            'align_loss': loss,
-            'align_svd_values': svd_values,
-        }
+        return aligned_features
         
-    def _compute_rank1_loss_with_metrics(self, aligned_features: Dict[str, torch.Tensor], 
-                                          aligned_negatives: Optional[Dict[str, torch.Tensor]] = None):
+    def _compute_rank1_loss_with_metrics(self, features: torch.Tensor, 
+                                          negatives_features: Optional[torch.Tensor] = None):
         """
         计算 rank1 损失并返回 SVD 特征值（带详细时间分析）
         
@@ -117,9 +112,6 @@ class SVDGateRandomClamDetach(ClamDetach):
             svd_values: SVD 特征值 Tensor[num_modalities]
         """
         # 1. SVD 计算和 loss1
-        feature_list = list(aligned_features.values())
-        features = torch.stack(feature_list, dim=-1).squeeze(0)  # [batch_size, feature_dim, num_modalities]
-        
         # L2 归一化：x <- x / (||x||_2 + ε)
         eps = 1e-8
         l2_norm = torch.norm(features, p=2, dim=1, keepdim=True)  # [batch_size, 1, num_modalities]
@@ -160,31 +152,32 @@ class SVDGateRandomClamDetach(ClamDetach):
                 loss2_sum = loss2_sum + F.cross_entropy(logits_tail, targets_tail, reduction='sum')
             loss2 = loss2_sum / batch_count
 
-        if self.lambda2 == 0:
-            return loss1 + self.lambda1 * loss2, svd_values
+        return loss1 + self.lambda1 * loss2, svd_values
+        # if self.lambda2 == 0:
+        #     return loss1 + self.lambda1 * loss2, svd_values
 
-        # 3. loss3 (loss_IM) 计算
-        batch_size = feature_list[0].shape[0]
-        positive_labels = torch.ones(batch_size, device=features.device)
+        # # 3. loss3 (loss_IM) 计算
+        # batch_size = features.shape[0]
+        # positive_labels = torch.ones(batch_size, device=features.device)
         
-        def fuse(feat_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
-            # 将多模态特征拼接为单向量 [N, d*K]
-            return torch.cat(list(feat_dict.values()), dim=1)
+        # def fuse(feat_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
+        #     # 将多模态特征拼接为单向量 [N, d*K]
+        #     return torch.cat(list(feat_dict.values()), dim=1)
 
-        if aligned_negatives is None:
-            raise RuntimeError("Negative features not provided by dataset. Ensure DataLoader yields 'features_neg' per batch.")
-        neg_fused = fuse(aligned_negatives)
+        # if negatives_features is None:
+        #     raise RuntimeError("Negative features not provided by dataset. Ensure DataLoader yields 'features_neg' per batch.")
+        # neg_fused = fuse(negatives_features)
 
-        pos_fused = fuse(aligned_features)
-        all_features = torch.cat([pos_fused, neg_fused], dim=0)
-        negative_labels = torch.zeros(neg_fused.shape[0], device=features.device)
-        all_labels = torch.cat([positive_labels, negative_labels], dim=0)
+        # pos_fused = fuse(features)
+        # all_features = torch.cat([pos_fused, neg_fused], dim=0)
+        # negative_labels = torch.zeros(neg_fused.shape[0], device=features.device)
+        # all_labels = torch.cat([positive_labels, negative_labels], dim=0)
 
-        pred_M = self.alignment_layers.mlp_predictor(all_features)
-        loss_IM = F.binary_cross_entropy(pred_M.squeeze(), all_labels)
+        # pred_M = self.alignment_layers.mlp_predictor(all_features)
+        # loss_IM = F.binary_cross_entropy(pred_M.squeeze(), all_labels)
         
-        total_loss = loss1 + self.lambda1 * loss2 + self.lambda2 * loss_IM
-        return total_loss, svd_values
+        # total_loss = loss1 + self.lambda1 * loss2 + self.lambda2 * loss_IM
+        # return total_loss, svd_values
     
     def forward(self, input_data, label):
         """
@@ -224,10 +217,7 @@ class SVDGateRandomClamDetach(ClamDetach):
         if self.enable_svd:
             if not hasattr(self, 'alignment_features'):
                 self.alignment_features = []
-            result = self.align_forward(features_dict, label)
-            for key, value in result.items():
-                result_kwargs[f'align_{key}'] = value
-            features_dict = result['aligned_features']
+            features_dict = self.align_forward(features_dict)
             self.alignment_features.append(features_dict)
             if self.enable_dynamic_gated:
                 result = self.gated_forward(features_dict, label)
@@ -243,11 +233,18 @@ class SVDGateRandomClamDetach(ClamDetach):
         
         if self.enable_random_loss:
             drop_modality = random.sample(list(features_dict.keys()), random.randint(1, len(features_dict)-1))
-            h_partial = torch.cat([features_dict[modality] for modality in features_dict.keys() if modality not in drop_modality], dim=1).to(self.device)
+            h_partial = []
+            for modality in features_dict.keys():
+                if modality not in drop_modality:
+                    h_partial.append(features_dict[modality])
+                else:
+                    h_partial.append(torch.zeros_like(features_dict[modality]).to(self.device))
+            h_partial = torch.cat(h_partial, dim=1).to(self.device)
             logits = self.fusion_prediction(h_partial.detach())
             result_kwargs['random_partial_loss'] = self.base_loss_fn(logits, label)
             
         h = torch.cat(list(features_dict.values()), dim=1).to(self.device)
+
         logits = self.fusion_prediction(h.detach())
         Y_prob = F.softmax(logits, dim = 1)
         Y_hat = torch.topk(logits, 1, dim = 1)[1]
@@ -268,7 +265,8 @@ class SVDGateRandomClamDetach(ClamDetach):
                 total_loss += value
         base_loss = self.base_loss_fn(logits, labels)
         if self.enable_random_loss:
-            total_loss += torch.max(0, base_loss - result['random_partial_loss'])
+            # MoFe-like hinge: max(0, base_loss - random_partial_loss)
+            total_loss += torch.clamp(base_loss - result['random_partial_loss'], min=0.0)
         return base_loss + total_loss
 
     def group_loss_fn(self, result: Dict[str, float]) -> torch.Tensor:
@@ -280,8 +278,11 @@ class SVDGateRandomClamDetach(ClamDetach):
         for feature_dict in self.alignment_features:
             feature = []
             for key in keys:
-                feature.append(feature_dict[key])
+                feature.append(feature_dict[key])  # each: [1, feature_dim]
+            # per-batch: [1, feature_dim, num_modalities] -> squeeze batch -> [feature_dim, num_modalities]
             features.append(torch.stack(feature, dim=-1).squeeze(0))
+        self.alignment_features = []
+        # aggregate across batches: [num_batches, feature_dim, num_modalities]
         features = torch.stack(features, dim=0)
         svd_loss, svd_values = self._compute_rank1_loss_with_metrics(features)
         return svd_loss
