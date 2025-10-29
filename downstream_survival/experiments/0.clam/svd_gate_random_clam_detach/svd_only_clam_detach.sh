@@ -34,7 +34,7 @@ EARLY_STOPPING="--early_stopping"  # 启用早停
 BATCH_SIZE=64
 
 # 模型参数 - 使用基础CLAM模型
-MODEL_TYPE="clam_detach"  # 使用基础CLAM模型，不包含gate和random功能
+MODEL_TYPE="svd_gate_random_clam_detach"  # 使用基础CLAM模型，不包含gate和random功能
 INPUT_DIM=1024
 DROPOUT=0.25
 N_CLASSES=2

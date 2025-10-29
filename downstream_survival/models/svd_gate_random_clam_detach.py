@@ -230,7 +230,7 @@ class SVDGateRandomClamDetach(ClamDetach):
                 for key, value in result.items():
                     result_kwargs[f'gated_{key}'] = value
                 features_dict = result['gated_features']
-        
+                
         if self.enable_random_loss:
             drop_modality = random.sample(list(features_dict.keys()), random.randint(1, len(features_dict)-1))
             h_partial = []

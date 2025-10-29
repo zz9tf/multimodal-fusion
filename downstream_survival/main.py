@@ -44,7 +44,6 @@ def _get_model_specific_config(args):
     
     mil_config = {
         'model_size': args.model_size,
-        'channels_used_in_model': args.channels_used_in_model,
         'return_features': args.return_features,
     }
     clam_config = {
@@ -54,7 +53,6 @@ def _get_model_specific_config(args):
         'model_size': args.model_size,
         'subtyping': args.subtyping,
         'inst_number': args.inst_number,
-        'channels_used_in_model': args.channels_used_in_model,
         'return_features': args.return_features,
         'attention_only': args.attention_only
     }
@@ -803,6 +801,7 @@ configs = {
         'dropout': args.dropout,
         'n_classes': args.n_classes,
         'base_loss_fn': args.base_loss_fn,
+        'channels_used_in_model': args.channels_used_in_model,
         **_get_model_specific_config(args)
     }
 }
