@@ -79,8 +79,11 @@ def _get_model_specific_config(args):
         'enable_random_loss': args.enable_random_loss,
         'weight_random_loss': args.weight_random_loss,
     }
-    
-    if model_type == 'clam':
+    if model_type == 'mil':
+        return {
+            **mil_config,
+        }
+    elif model_type == 'clam':
         return {
             **clam_config,
         }
@@ -89,11 +92,12 @@ def _get_model_specific_config(args):
             **clam_config,
             **auc_config,
         }
-    elif model_type == 'mil':
+    elif model_type == 'clam_mlp':
         return {
-            **mil_config,
+            **clam_config,
+            **transfer_layer_config
         }
-    elif model_type == 'clam_detach':
+    elif model_type == 'clam_mlp_detach':
         return {
             **clam_config,
             **transfer_layer_config,
@@ -679,7 +683,10 @@ parser.add_argument('--lr_scheduler_params', type=str, default='{}',
                     help='学习率调度器参数 (JSON字符串，默认: {})')
 
 # 模型相关参数
-parser.add_argument('--model_type', type=str, choices=['clam', 'clam_detach', 'auc_clam', 'svd_gate_random_clam_detach', 'mil', 'gate_shared_mil', 'gate_mil', 'gate_auc_mil', 'gate_mil_detach'], 
+parser.add_argument('--model_type', type=str, choices=[
+    'mil', 'clam', 'auc_clam', 'clam_mlp', 'clam_mlp_detach', 'svd_gate_random_clam', 'svd_gate_random_clam_detach', 
+    'gate_shared_mil', 'gate_mil_detach', 'gate_mil', 'gate_auc_mil'
+    ], 
                     default='clam', help='模型类型 (default: clam)')
 parser.add_argument('--input_dim', type=int, default=1024,
                     help='输入维度')

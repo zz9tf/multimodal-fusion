@@ -48,9 +48,9 @@ class Attn_Net_Gated(nn.Module):
         A = self.attention_c(A)
         return A, x
 
-class ClamDetach(BaseModel):
+class ClamMLP(BaseModel):
     """
-    CLAM 模型
+    CLAM MLP 模型
     
     配置参数：
     - n_classes: 类别数量
@@ -341,12 +341,12 @@ class ClamDetach(BaseModel):
             features = None
             if channel == 'wsi=features':
                 clam_result_kwargs = self._clam_forward(channel, input_data[channel], label)
-                features = clam_result_kwargs['features'].detach()
+                features = clam_result_kwargs['features']
                 for key, value in clam_result_kwargs.items():
                     result_kwargs[f'{channel}_{key}'] = value
             elif channel == 'tma=features':
                 clam_result_kwargs = self._clam_forward(channel, input_data[channel], label)
-                features = clam_result_kwargs['features'].detach()
+                features = clam_result_kwargs['features']
                 for key, value in clam_result_kwargs.items():
                     result_kwargs[f'{channel}_{key}'] = value
             else:

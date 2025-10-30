@@ -7,7 +7,9 @@
 from .clam import CLAM
 from .auc_clam import AUC_CLAM
 from .mil import MIL_fc
-from .clam_detach import ClamDetach
+from .clam_mlp_detach import ClamMLPDetach
+from .clam_mlp import ClamMLP
+from .svd_gate_random_clam import SVDGateRandomClam
 from .svd_gate_random_clam_detach import SVDGateRandomClamDetach
 from .gate_shared_mil import GateSharedMIL
 from .gate_mil import GateMIL
@@ -29,7 +31,9 @@ class ModelFactory:
         'mil': MIL_fc,
         'clam': CLAM,
         'auc_clam': AUC_CLAM,
-        'clam_detach': ClamDetach,
+        'clam_mlp': ClamMLP,
+        'clam_mlp_detach': ClamMLPDetach,
+        'svd_gate_random_clam': SVDGateRandomClam,
         'svd_gate_random_clam_detach': SVDGateRandomClamDetach,
         'gate_shared_mil': GateSharedMIL,
         'gate_mil': GateMIL,
