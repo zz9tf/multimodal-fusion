@@ -14,6 +14,7 @@ import numpy as np
 import json
 import torch
 from torch.utils.data import Subset
+from sklearn.model_selection import StratifiedShuffleSplit
 
 # 内置工具函数，减少外部依赖
 import pickle
@@ -101,6 +102,14 @@ def _get_model_specific_config(args):
         return {
             **clam_config,
             **transfer_layer_config,
+        }
+    elif model_type == 'svd_gate_random_clam':
+        return {
+            **clam_config,
+            **transfer_layer_config,
+            **svd_config,
+            **dynamic_gate_config,
+            **random_loss_config,
         }
     elif model_type == 'svd_gate_random_clam_detach':
         return {
@@ -295,19 +304,21 @@ def create_k_fold_splits(dataset, k=10, seed=42, fixed_test_split=None):
         skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=seed)
         
         for fold_idx, (train_idx, test_idx) in enumerate(skf.split(range(len(dataset)), labels)):
-            # 将测试集进一步分为验证集和测试集
-            test_labels = labels[test_idx]
-            val_test_skf = StratifiedKFold(n_splits=2, shuffle=True, random_state=seed)
-            val_idx, test_idx_final = next(val_test_skf.split(test_idx, test_labels))
-            
+            # 在训练集上进一步划分出验证集，使总体比例为：train=(k-2)/k, val=1/k, test=1/k
+            # 对于k=10，即 train=80%, val=10%, test=10%
+            train_labels = labels[train_idx]
+            val_ratio_within_train = 1.0 / (k - 1)
+            sss = StratifiedShuffleSplit(n_splits=1, test_size=val_ratio_within_train, random_state=seed)
+            rel_train_idx, rel_val_idx = next(sss.split(train_idx, train_labels))
+
             # 转换为实际索引
-            val_idx = test_idx[val_idx]
-            test_idx_final = test_idx[test_idx_final]
-            
+            actual_train_idx = train_idx[rel_train_idx]
+            actual_val_idx = train_idx[rel_val_idx]
+
             splits.append({
-                'train': train_idx,
-                'val': val_idx, 
-                'test': test_idx_final
+                'train': actual_train_idx,
+                'val': actual_val_idx,
+                'test': test_idx
             })
     
     return splits
