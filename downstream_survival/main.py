@@ -71,6 +71,13 @@ def _get_model_specific_config(args):
         'tau1': args.tau1,
         'tau2': args.tau2,
     }
+    
+    clip_config = {
+        'alignment_layer_num': args.alignment_layer_num,
+        'enable_clip': args.enable_clip,
+        'clip_init_tau': args.clip_init_tau,
+    }
+    
     dynamic_gate_config = {
         'enable_dynamic_gate': args.enable_dynamic_gate,
         'confidence_weight': args.confidence_weight,
@@ -119,6 +126,22 @@ def _get_model_specific_config(args):
             **dynamic_gate_config,
             **random_loss_config,
         }
+    elif model_type == 'clip_gate_random_clam':
+        return {
+            **clam_config,
+            **transfer_layer_config,
+            **clip_config,
+            **dynamic_gate_config,
+            **random_loss_config,
+        }
+    elif model_type == 'clip_gate_random_clam_detach':
+        return {
+            **clam_config,
+            **transfer_layer_config,
+            **clip_config,
+            **dynamic_gate_config,
+            **random_loss_config,
+        }   
     elif model_type == 'gate_shared_mil':
         return {
             **mil_config,
@@ -296,29 +319,50 @@ def create_k_fold_splits(dataset, k=10, seed=42, fixed_test_split=None):
                 'val': actual_val_idx,
                 'test': test_indices  # 测试集始终相同
             })
+    # else:
+    #     # 原始的分割方式：将测试集进一步分为验证集和测试集
+    #     print(f"🔄 使用传统k-fold分割")
+        
+    #     # 创建分层k-fold分割
+    #     skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=seed)
+        
+    #     for fold_idx, (train_idx, test_idx) in enumerate(skf.split(range(len(dataset)), labels)):
+    #         # 在训练集上进一步划分出验证集，使总体比例为：train=(k-2)/k, val=1/k, test=1/k
+    #         # 对于k=10，即 train=80%, val=10%, test=10%
+    #         train_labels = labels[train_idx]
+    #         val_ratio_within_train = 1.0 / (k - 1)
+    #         sss = StratifiedShuffleSplit(n_splits=1, test_size=val_ratio_within_train, random_state=seed)
+    #         rel_train_idx, rel_val_idx = next(sss.split(train_idx, train_labels))
+
+    #         # 转换为实际索引
+    #         actual_train_idx = train_idx[rel_train_idx]
+    #         actual_val_idx = train_idx[rel_val_idx]
+
+    #         splits.append({
+    #             'train': actual_train_idx,
+    #             'val': actual_val_idx,
+    #             'test': test_idx
+    #         })
     else:
         # 原始的分割方式：将测试集进一步分为验证集和测试集
         print(f"🔄 使用传统k-fold分割")
-        
-        # 创建分层k-fold分割
         skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=seed)
         
+        splits = []
         for fold_idx, (train_idx, test_idx) in enumerate(skf.split(range(len(dataset)), labels)):
-            # 在训练集上进一步划分出验证集，使总体比例为：train=(k-2)/k, val=1/k, test=1/k
-            # 对于k=10，即 train=80%, val=10%, test=10%
-            train_labels = labels[train_idx]
-            val_ratio_within_train = 1.0 / (k - 1)
-            sss = StratifiedShuffleSplit(n_splits=1, test_size=val_ratio_within_train, random_state=seed)
-            rel_train_idx, rel_val_idx = next(sss.split(train_idx, train_labels))
-
+            # 将测试集进一步分为验证集和测试集
+            test_labels = labels[test_idx]
+            val_test_skf = StratifiedKFold(n_splits=2, shuffle=True, random_state=seed)
+            val_idx, test_idx_final = next(val_test_skf.split(test_idx, test_labels))
+            
             # 转换为实际索引
-            actual_train_idx = train_idx[rel_train_idx]
-            actual_val_idx = train_idx[rel_val_idx]
-
+            val_idx = test_idx[val_idx]
+            test_idx_final = test_idx[test_idx_final]
+            
             splits.append({
-                'train': actual_train_idx,
-                'val': actual_val_idx,
-                'test': test_idx
+                'train': train_idx,
+                'val': val_idx, 
+                'test': test_idx_final
             })
     
     return splits
@@ -671,7 +715,7 @@ parser.add_argument('--seed', type=int, default=1,
 parser.add_argument('--k', type=int, default=10, 
                     help='fold数量 (default: 10)')
 parser.add_argument('--split_mode', type=str, choices=['random', 'fixed'], default='random',
-                    help='数据集分割模式: random=随机分割, fixed=固定测试集分割 (default: random)')
+                    help='数据集分割模式: random=随机分割(80% train, 10% val, 10% test), fixed=固定测试集分割 (default: random)')
 parser.add_argument('--dataset_split_path', type=str, default=None,
                     help='固定测试集分割JSON文件路径 (仅在split_mode=fixed时使用)')
 parser.add_argument('--max_epochs', type=int, default=200,
@@ -696,7 +740,7 @@ parser.add_argument('--lr_scheduler_params', type=str, default='{}',
 # 模型相关参数
 parser.add_argument('--model_type', type=str, choices=[
     'mil', 'clam', 'auc_clam', 'clam_mlp', 'clam_mlp_detach', 'svd_gate_random_clam', 'svd_gate_random_clam_detach', 
-    'gate_shared_mil', 'gate_mil_detach', 'gate_mil', 'gate_auc_mil'
+    'gate_shared_mil', 'gate_mil_detach', 'gate_mil', 'gate_auc_mil', 'clip_gate_random_clam', 'clip_gate_random_clam_detach'
     ], 
                     default='clam', help='模型类型 (default: clam)')
 parser.add_argument('--input_dim', type=int, default=1024,
@@ -747,6 +791,12 @@ parser.add_argument('--tau1', type=float, default=0.1,
                     help='SVD: 对齐损失权重')
 parser.add_argument('--tau2', type=float, default=0.05,
                     help='SVD: 对齐损失权重')
+
+# CLIP相关参数
+parser.add_argument('--enable_clip', action='store_true', default=False, 
+                    help='CLIP: 启用CLIP')
+parser.add_argument('--clip_init_tau', type=float, default=0.07,
+                    help='CLIP: 初始tau')
 
 # Dynamic Gate相关参数
 parser.add_argument('--enable_dynamic_gate', action='store_true', default=False, 

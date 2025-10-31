@@ -11,7 +11,7 @@ CUDA_DEVICE=1
 export CUDA_VISIBLE_DEVICES="$CUDA_DEVICE"
 
 # 数据相关参数
-DATA_ROOT_DIR="/home/zheng/zheng/public/6"
+DATA_ROOT_DIR="/home/zheng/zheng/public/2"
 RESULTS_DIR="/home/zheng/zheng/multimodal-fusion/downstream_survival/results"
 CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv"
 TARGET_CHANNELS="wsi"
@@ -20,7 +20,8 @@ TARGET_CHANNELS="wsi"
 EXP_CODE="wsi_clam_mlp_detach"
 SEED=5678
 K_FOLDS=10
-SPLIT_MODE="random"
+SPLIT_MODE="fixed"
+DATASET_SPLIT_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/dataset_split_in.json"
 MAX_EPOCHS=200
 LEARNING_RATE=1e-4
 LR_SCHEDULER="plateau"
@@ -78,4 +79,4 @@ python main.py \
     --inst_number $INST_NUMBER \
     --channels_used_in_model $CHANNELS_USED_IN_MODEL \
     --output_dim $OUTPUT_DIM \
-
+    --dataset_split_path $DATASET_SPLIT_PATH \

@@ -1,23 +1,26 @@
 #!/bin/bash
 
 # =============================================================================
-# 环境设置
+# SVD + Random Loss 实验脚本（尽量不启用 Dynamic Gate 的影响）
+# 说明：当前模型默认启用动态门控，为尽量隔离其影响，将权重设为0。
 # =============================================================================
+
+# 环境设置
 source ~/zheng/miniconda3/etc/profile.d/conda.sh
 conda activate multimodal-fusion
 cd /home/zheng/zheng/multimodal-fusion/downstream_survival
 
-CUDA_DEVICE=0
+CUDA_DEVICE=1
 export CUDA_VISIBLE_DEVICES="$CUDA_DEVICE"
 
 # 数据相关参数
-DATA_ROOT_DIR="/home/zheng/zheng/public/1"
+DATA_ROOT_DIR="/home/zheng/zheng/public/2"
 RESULTS_DIR="/home/zheng/zheng/multimodal-fusion/downstream_survival/results"
 CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv"
-TARGET_CHANNELS="blood"
+TARGET_CHANNELS="wsi tma clinical pathological blood icd tma_cell_density"
 
 # 实验 & 训练参数
-EXP_CODE="blood_clam_mlp"
+EXP_CODE="clip_random_clam_detach"
 SEED=5678
 K_FOLDS=10
 SPLIT_MODE="fixed"
@@ -28,27 +31,35 @@ LR_SCHEDULER="plateau"
 LR_SCHEDULER_PARAMS='{"mode": "min", "patience": 15, "factor": 0.5}'
 WEIGHT_DECAY=1e-5
 OPTIMIZER="adam"
-EARLY_STOPPING="--early_stopping"  # 启用早停
+EARLY_STOPPING="--early_stopping"
 BATCH_SIZE=64
 
-# 模型参数
-MODEL_TYPE="clam_mlp"
+# 模型与CLAM参数
+MODEL_TYPE="clip_gate_random_clam_detach"
 INPUT_DIM=1024
 DROPOUT=0.25
 N_CLASSES=2
 BASE_LOSS_FN="ce"
-
-# CLAM特定参数
 GATE="--gate"
 BASE_WEIGHT=0.9
 INST_LOSS_FN="ce"
 MODEL_SIZE="64*32"
 SUBTYPING="--subtyping"
 INST_NUMBER=8
-CHANNELS_USED_IN_MODEL="blood"
+CHANNELS_USED_IN_MODEL="wsi tma clinical pathological blood icd tma_cell_density"
 OUTPUT_DIM=128
 
-# 运行训练
+# CLIP参数
+ENABLE_CLIP="--enable_clip"
+ALIGNMENT_LAYER_NUM=2
+CLIP_INIT_TAU=0.07
+
+# Random Loss参数
+ENABLE_RANDOM_LOSS="--enable_random_loss"
+WEIGHT_RANDOM_LOSS=0.1
+
+echo "🚀 开始 CLIP + Random Loss 实验..."
+
 python main.py \
     --data_root_dir "$DATA_ROOT_DIR" \
     --results_dir "$RESULTS_DIR" \
@@ -58,7 +69,6 @@ python main.py \
     --seed $SEED \
     --k $K_FOLDS \
     --split_mode $SPLIT_MODE \
-    --dataset_split_path $DATASET_SPLIT_PATH \
     --max_epochs $MAX_EPOCHS \
     --lr $LEARNING_RATE \
     --lr_scheduler $LR_SCHEDULER \
@@ -66,6 +76,7 @@ python main.py \
     --reg $WEIGHT_DECAY \
     --opt $OPTIMIZER \
     $EARLY_STOPPING \
+    --dataset_split_path $DATASET_SPLIT_PATH \
     --batch_size $BATCH_SIZE \
     --model_type $MODEL_TYPE \
     --input_dim $INPUT_DIM \
@@ -80,4 +91,10 @@ python main.py \
     --inst_number $INST_NUMBER \
     --channels_used_in_model $CHANNELS_USED_IN_MODEL \
     --output_dim $OUTPUT_DIM \
+    $ENABLE_CLIP \
+    --alignment_layer_num $ALIGNMENT_LAYER_NUM \
+    --clip_init_tau $CLIP_INIT_TAU \
+    $ENABLE_RANDOM_LOSS \
+    --weight_random_loss $WEIGHT_RANDOM_LOSS
 
+echo "✅ CLIP + Random Loss 实验完成!"

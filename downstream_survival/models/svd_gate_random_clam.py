@@ -36,7 +36,7 @@ class SVDGateRandomClam(ClamMLP):
             self.lambda1 = config.get('lambda1', 1.0)
             self.lambda2 = config.get('lambda2', 0.1)
             self.loss2_chunk_size = config.get('loss2_chunk_size', None)
-            self._init_svd_model()
+            self._init_align_model()
         self.enable_random_loss = config.get('enable_random_loss', True)
         self.weight_random_loss = config.get('weight_random_loss', 0.1)
     
@@ -60,7 +60,7 @@ class SVDGateRandomClam(ClamMLP):
         self.TCPLogitsLoss_fn = nn.CrossEntropyLoss(reduction='none')
         self.TCPConfidenceLoss_fn = nn.MSELoss(reduction='none')
         
-    def _init_svd_model(self):
+    def _init_align_model(self):
         self.alignment_layers_creator = lambda: nn.Sequential(*[
             nn.Linear(self.output_dim, self.output_dim)
             for _ in range(self.alignment_layer_num)

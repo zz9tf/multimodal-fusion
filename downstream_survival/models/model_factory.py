@@ -15,6 +15,8 @@ from .gate_shared_mil import GateSharedMIL
 from .gate_mil import GateMIL
 from .gate_auc_mil import GateAUCMIL
 from .gate_mil_detach import GateMILDetach
+from .clip_gate_random_clam import ClipGateRandomClam
+from .clip_gate_random_clam_detach import ClipGateRandomClamDetach
 from .base_model import BaseModel
 from typing import Dict, Any, Type
 
@@ -35,6 +37,8 @@ class ModelFactory:
         'clam_mlp_detach': ClamMLPDetach,
         'svd_gate_random_clam': SVDGateRandomClam,
         'svd_gate_random_clam_detach': SVDGateRandomClamDetach,
+        'clip_gate_random_clam': ClipGateRandomClam,
+        'clip_gate_random_clam_detach': ClipGateRandomClamDetach,
         'gate_shared_mil': GateSharedMIL,
         'gate_mil': GateMIL,
         'gate_auc_mil': GateAUCMIL,

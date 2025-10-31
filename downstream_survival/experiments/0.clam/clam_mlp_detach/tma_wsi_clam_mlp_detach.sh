@@ -7,17 +7,17 @@ source ~/zheng/miniconda3/etc/profile.d/conda.sh
 conda activate multimodal-fusion
 cd /home/zheng/zheng/multimodal-fusion/downstream_survival
 
-CUDA_DEVICE=0
+CUDA_DEVICE=1
 export CUDA_VISIBLE_DEVICES="$CUDA_DEVICE"
 
 # 数据相关参数
-DATA_ROOT_DIR="/home/zheng/zheng/public/1"
+DATA_ROOT_DIR="/home/zheng/zheng/public/2"
 RESULTS_DIR="/home/zheng/zheng/multimodal-fusion/downstream_survival/results"
 CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv"
-TARGET_CHANNELS="blood"
+TARGET_CHANNELS="wsi tma"
 
 # 实验 & 训练参数
-EXP_CODE="blood_clam_mlp"
+EXP_CODE="wsi_tma_clam_mlp_detach"
 SEED=5678
 K_FOLDS=10
 SPLIT_MODE="fixed"
@@ -32,7 +32,7 @@ EARLY_STOPPING="--early_stopping"  # 启用早停
 BATCH_SIZE=64
 
 # 模型参数
-MODEL_TYPE="clam_mlp"
+MODEL_TYPE="clam_mlp_detach"
 INPUT_DIM=1024
 DROPOUT=0.25
 N_CLASSES=2
@@ -45,7 +45,7 @@ INST_LOSS_FN="ce"
 MODEL_SIZE="64*32"
 SUBTYPING="--subtyping"
 INST_NUMBER=8
-CHANNELS_USED_IN_MODEL="blood"
+CHANNELS_USED_IN_MODEL="wsi tma"
 OUTPUT_DIM=128
 
 # 运行训练
