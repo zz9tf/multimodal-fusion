@@ -170,7 +170,7 @@ class ClamMLP(BaseModel):
     
     def _init_transfer_model(self):
         self.create_transfer_layer = lambda input_dim: nn.Linear(input_dim, self.output_dim).to(self.device)
-        self.transfer_layer = nn.ModuleDict({})
+        self.transfer_layer = nn.ModuleDict()
     
     def _init_fusion_prediction(self):
         self.fusion_prediction = nn.Sequential(

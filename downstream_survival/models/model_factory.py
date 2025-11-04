@@ -17,6 +17,8 @@ from .gate_auc_mil import GateAUCMIL
 from .gate_mil_detach import GateMILDetach
 from .clip_gate_random_clam import ClipGateRandomClam
 from .clip_gate_random_clam_detach import ClipGateRandomClamDetach
+from .deep_supervise_svd_gate_random import DeepSuperviseSVDGateRandomClam
+from .deep_supervise_svd_gate_random_detach import DeepSuperviseSVDGateRandomClamDetach
 from .base_model import BaseModel
 from typing import Dict, Any, Type
 
@@ -42,7 +44,9 @@ class ModelFactory:
         'gate_shared_mil': GateSharedMIL,
         'gate_mil': GateMIL,
         'gate_auc_mil': GateAUCMIL,
-        'gate_mil_detach': GateMILDetach
+        'gate_mil_detach': GateMILDetach,
+        'deep_supervise_svd_gate_random': DeepSuperviseSVDGateRandomClam,
+        'deep_supervise_svd_gate_random_detach': DeepSuperviseSVDGateRandomClamDetach
     }
     
     @staticmethod

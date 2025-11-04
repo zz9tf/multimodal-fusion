@@ -61,21 +61,60 @@ def to_serializable(obj: Any) -> Any:
         return str(obj)
 
 def save_splits(split_datasets, column_keys, filename, boolean_style=False):
-	"""保存数据集分割信息"""
+	"""
+	保存数据集分割信息（使用patient_id/case_id而非索引，确保可复现性）
+	
+	关键修复：从Subset对象中提取原始数据集的case_ids，使用实际的case_id而非索引
+	这样即使数据集顺序不同，也能通过case_id正确匹配划分
+	"""
 	try:
-		# 获取每个分割的case_ids
+		# 获取每个分割的case_ids（从Subset中提取原始数据集的case_ids）
 		splits = []
 		for i, dataset in enumerate(split_datasets):
 			if hasattr(dataset, 'case_ids'):
 				# 直接是MultimodalDataset对象
 				splits.append(pd.Series(dataset.case_ids))
+			elif hasattr(dataset, 'dataset') and hasattr(dataset, 'indices'):
+				# 是Subset对象，需要从原始数据集提取case_ids
+				base_dataset = dataset.dataset
+				indices = dataset.indices
+				
+				if hasattr(base_dataset, 'case_ids'):
+					# 从原始数据集的case_ids中提取对应的case_id
+					base_case_ids = base_dataset.case_ids
+					if isinstance(base_case_ids, list):
+						case_ids = [base_case_ids[idx] for idx in indices]
+					else:
+						# 如果是其他类型（如numpy array），转换为list
+						case_ids = [base_case_ids[idx] for idx in indices]
+					splits.append(pd.Series(case_ids))
+				else:
+					# fallback: 使用索引
+					splits.append(pd.Series([f"sample_{j}" for j in indices]))
 			else:
 				# fallback: 使用索引
 				splits.append(pd.Series([f"sample_{j}" for j in range(len(dataset))]))
 		
 		if not boolean_style:
-			df = pd.concat(splits, ignore_index=True, axis=1)
-			df.columns = column_keys
+			# 创建DataFrame，每列是一个分割的case_ids
+			# 使用最长的分割作为DataFrame的长度，较短的用NaN填充
+			max_len = max(len(s) for s in splits) if splits else 0
+			
+			# 创建字典，每个键对应一个分割的case_ids
+			data_dict = {}
+			for i, col_key in enumerate(column_keys):
+				if i < len(splits):
+					case_ids = splits[i].tolist()
+					# 填充NaN使其长度一致
+					while len(case_ids) < max_len:
+						case_ids.append(None)
+					data_dict[col_key] = case_ids
+				else:
+					data_dict[col_key] = [None] * max_len
+			
+			df = pd.DataFrame(data_dict)
+			# 移除全NaN的行
+			df = df.dropna(how='all')
 		else:
 			df = pd.concat(splits, ignore_index = True, axis=0)
 			index = df.values.tolist()
@@ -83,10 +122,12 @@ def save_splits(split_datasets, column_keys, filename, boolean_style=False):
 			bool_array = np.repeat(one_hot, [len(dset) for dset in split_datasets], axis=0)
 			df = pd.DataFrame(bool_array, index=index, columns = ['train', 'val', 'test'])
 
-		df.to_csv(filename)
-		print(f"✅ 保存分割信息到: {filename}")
+		df.to_csv(filename, index=False)
+		print(f"✅ 保存分割信息到: {filename} (使用case_id)")
 	except Exception as e:
 		print(f"⚠️ 保存分割信息失败: {e}")
+		import traceback
+		traceback.print_exc()
 		# 创建一个简单的分割记录
 		split_info = {
 			'split_type': column_keys,
@@ -935,3 +976,139 @@ class Trainer:
         print('\nTest Set, test_loss: {:.4f}, test_accuracy: {:.4f}, auc: {:.4f}'.format(test_loss, test_acc, auc))
 
         return patient_results, test_acc, auc, logger
+
+    def evaluate_fold(self,
+                      datasets: Tuple[Any, Any, Any],
+                      fold_idx: int,
+                      checkpoint_path: str) -> Tuple[Dict, float, Optional[float], float, Optional[float]]:
+        """
+        仅评测接口：加载指定checkpoint，在给定datasets的测试集上评测。
+
+        Args:
+            datasets: (train_dataset, val_dataset, test_dataset) 元组，测试集将被用于评测
+            fold_idx: 当前fold索引（用于日志打印/兼容接口）
+            checkpoint_path: 模型权重路径（推荐为 train_fold 保存的 s_{fold}_checkpoint.pt）
+
+        Returns:
+            (results_dict, test_auc, None, test_acc, None) 与 train_fold 结果形式对齐（验证指标置为 None）
+        """
+        print(f"\n[Evaluate] Fold {fold_idx} | checkpoint: {checkpoint_path}")
+
+        # 每次评测都重新初始化模型（不复用之前的模型状态）
+        model = self._init_model()
+        print(f"🔧 创建新模型实例，id={id(model)}")
+        self.loss_fn = model.loss_fn  # 更新 loss_fn 为当前模型的
+        
+        # 加载checkpoint（与训练时的load方式一致）
+        state = torch.load(checkpoint_path, map_location=device)
+        print(f"📦 checkpoint加载成功，state_dict keys数量: {len(state.keys())}")
+        
+        # 关键修复：在加载checkpoint之前，预创建所有checkpoint中存在的transfer_layer
+        # 因为测试时的输入和训练时是一致的，所有通道都会被访问，所以需要预创建所有transfer_layer
+        if hasattr(model, 'transfer_layer') and hasattr(model, 'create_transfer_layer'):
+            # 从checkpoint中找到所有transfer_layer的通道
+            transfer_layer_channels = {}
+            for key in state.keys():
+                if 'transfer_layer.' in key:
+                    # 提取通道名和权重类型，例如 "transfer_layer.clinical=val.weight" -> ("clinical=val", "weight")
+                    parts = key.split('.')
+                    if len(parts) >= 3:
+                        channel_name = parts[1]  # 例如 "clinical=val"
+                        weight_type = parts[2]  # "weight" 或 "bias"
+                        
+                        if channel_name not in transfer_layer_channels:
+                            transfer_layer_channels[channel_name] = {}
+                        transfer_layer_channels[channel_name][weight_type] = state[key]
+            
+            # 根据checkpoint中的权重创建对应的transfer_layer
+            if hasattr(model, 'output_dim'):
+                output_dim = model.output_dim
+                print(f"🔧 预创建 {len(transfer_layer_channels)} 个transfer_layer以匹配checkpoint...")
+                for channel_name, weights in transfer_layer_channels.items():
+                    if channel_name not in model.transfer_layer:
+                        # 从weight的形状推断input_dim: weight形状是 [output_dim, input_dim]
+                        if 'weight' in weights:
+                            weight_tensor = weights['weight']
+                            if len(weight_tensor.shape) == 2:
+                                input_dim = weight_tensor.shape[1]  # 第二维是input_dim
+                                # 创建transfer_layer
+                                transfer_layer = model.create_transfer_layer(input_dim)
+                                model.transfer_layer[channel_name] = transfer_layer
+                                print(f"   ✅ 创建 transfer_layer.{channel_name} (input_dim={input_dim}, output_dim={output_dim})")
+                            else:
+                                print(f"   ⚠️ 无法推断 {channel_name} 的input_dim: weight形状异常 {weight_tensor.shape}")
+                        else:
+                            print(f"   ⚠️ checkpoint中缺少 {channel_name}.weight，无法创建transfer_layer")
+        
+        # 分析checkpoint中的权重类型
+        transfer_layer_keys = [k for k in state.keys() if 'transfer_layer.' in k]
+        core_keys = [k for k in state.keys() if 'transfer_layer.' not in k]
+        
+        print(f"📊 checkpoint权重分析:")
+        print(f"   核心权重: {len(core_keys)} 个")
+        print(f"   transfer_layer权重: {len(transfer_layer_keys)} 个")
+        
+        # 现在所有需要的transfer_layer都已创建，尝试使用strict=True确保完全匹配
+        # 如果还有不匹配，再降级到strict=False
+        try:
+            missing_keys, unexpected_keys = model.load_state_dict(state, strict=True)
+            print(f"✅ 使用strict=True成功加载所有权重（完全匹配）")
+        except RuntimeError as e:
+            # 如果strict=True失败，使用strict=False但会详细报告
+            print(f"⚠️ strict=True加载失败: {e}")
+            print(f"🔧 降级到strict=False加载...")
+            missing_keys, unexpected_keys = model.load_state_dict(state, strict=False)
+        
+        # 检查核心权重是否都加载了
+        model_core_keys = set([k for k in model.state_dict().keys() if 'transfer_layer.' not in k])
+        checkpoint_core_keys = set(core_keys)
+        loaded_core_keys = model_core_keys & checkpoint_core_keys
+        
+        if missing_keys:
+            missing_core = [k for k in missing_keys if 'transfer_layer.' not in k]
+            missing_transfer = [k for k in missing_keys if 'transfer_layer.' in k]
+            if missing_core:
+                print(f"⚠️ 警告：缺少以下核心权重（可能导致性能下降）: {len(missing_core)} 个")
+                for key in missing_core[:5]:
+                    print(f"    - {key}")
+                if len(missing_core) > 5:
+                    print(f"    ... 还有 {len(missing_core) - 5} 个")
+            if missing_transfer:
+                print(f"ℹ️ 信息：缺少以下transfer_layer权重（将在forward时动态创建）: {len(missing_transfer)} 个")
+        
+        if unexpected_keys:
+            unexpected_transfer = [k for k in unexpected_keys if 'transfer_layer.' in k]
+            unexpected_other = [k for k in unexpected_keys if 'transfer_layer.' not in k]
+            if unexpected_transfer:
+                print(f"ℹ️ 信息：checkpoint中有额外的transfer_layer权重（已忽略，不影响评测）: {len(unexpected_transfer)} 个")
+            if unexpected_other:
+                print(f"⚠️ 警告：checkpoint中有意外的其他权重: {len(unexpected_other)} 个")
+                for key in unexpected_other[:5]:
+                    print(f"    - {key}")
+        
+        # 验证核心权重加载情况
+        print(f"✅ 核心权重加载: {len(loaded_core_keys)}/{len(checkpoint_core_keys)} 个")
+        if len(loaded_core_keys) == len(checkpoint_core_keys):
+            print(f"✅ 所有核心权重已成功加载")
+        else:
+            print(f"⚠️ 警告：部分核心权重未加载: {len(checkpoint_core_keys) - len(loaded_core_keys)} 个")
+        
+        # 设置为评估模式
+        model.eval()
+
+        # 仅构造测试集数据加载器
+        _, _, test_split = datasets
+        test_loader = get_split_loader(test_split, training=False, weighted=False, batch_size=1)
+
+        # 评测
+        results_dict, test_acc, test_auc, _ = self._evaluate_model(test_loader, model)
+        return results_dict, float(test_auc), None, float(test_acc), None
+
+    def evaluate_with_checkpoint(self,
+                                 datasets: Tuple[Any, Any, Any],
+                                 fold_idx: int,
+                                 checkpoint_path: str) -> Tuple[Dict, float, Optional[float], float, Optional[float]]:
+        """
+        兼容名：直接调用 evaluate_fold。
+        """
+        return self.evaluate_fold(datasets=datasets, fold_idx=fold_idx, checkpoint_path=checkpoint_path)

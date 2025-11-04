@@ -1,13 +1,11 @@
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-from .svd_gate_random_clam import SVDGateRandomClam
+from .deep_supervise_svd_gate_random import DeepSuperviseSVDGateRandomClam
 import random
-from typing import Dict, List, Tuple, Optional
 
-class SVDGateRandomClamDetach(SVDGateRandomClam):
+class DeepSuperviseSVDGateRandomClamDetach(DeepSuperviseSVDGateRandomClam):
     """
-    CLAM MLP Detach 模型
+    CLAM MLP 模型
     
     配置参数：
     - n_classes: 类别数量
@@ -57,6 +55,10 @@ class SVDGateRandomClamDetach(SVDGateRandomClam):
                 if channel not in self.transfer_layer:
                     self.transfer_layer[channel] = self.create_transfer_layer(input_data[channel].shape[1])
                 features_dict[channel] = self.transfer_layer[channel](input_data[channel])
+                deep_supervise_result_kwargs = self.deep_supervise_forward(channel, features_dict[channel], label)
+                for key, value in deep_supervise_result_kwargs.items():
+                    result_kwargs[f'{channel}_{key}'] = value
+                features_dict[channel] = features_dict[channel].detach()
         
         if self.enable_svd:
             if not hasattr(self, 'alignment_features'):

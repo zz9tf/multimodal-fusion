@@ -36,6 +36,7 @@ class SVDGateRandomClam(ClamMLP):
             self.lambda1 = config.get('lambda1', 1.0)
             self.lambda2 = config.get('lambda2', 0.1)
             self.loss2_chunk_size = config.get('loss2_chunk_size', None)
+            self.return_svd_features = config.get('return_svd_features', False)
             self._init_align_model()
         self.enable_random_loss = config.get('enable_random_loss', True)
         self.weight_random_loss = config.get('weight_random_loss', 0.1)
@@ -217,7 +218,15 @@ class SVDGateRandomClam(ClamMLP):
         if self.enable_svd:
             if not hasattr(self, 'alignment_features'):
                 self.alignment_features = []
-            features_dict = self.align_forward(features_dict)
+            if self.return_svd_features:
+                original_features_dict = features_dict.copy()
+                features_dict = self.align_forward(features_dict)
+                return {
+                    'features': original_features_dict,
+                    'aligned_features': features_dict,
+                }
+            else:
+                features_dict = self.align_forward(features_dict)
             self.alignment_features.append(features_dict)
             if self.enable_dynamic_gate:
                 result = self.gated_forward(features_dict, label)

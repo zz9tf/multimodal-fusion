@@ -91,8 +91,7 @@ class MultimodalDataset(Dataset):
             self.case_to_file[case_id] = file_path
             self.case_to_label[case_id] = label
         
-        # 获取所有case_id列表
-        self.case_ids = list(self.case_to_file.keys())
+        self.case_ids = sorted(self.case_to_file.keys())
         
         # 对齐模型设置
         self.alignment_model = None
@@ -214,10 +213,9 @@ class MultimodalDataset(Dataset):
 
     def _filter_missing_data(self):
         """过滤掉没有指定channels数据的样本"""
-        if not self.print_info:
-            return
-            
-        print(f"🔍 检查数据完整性，channels: {self.channels}")
+        # 即使 print_info=False 也要执行过滤，只是不打印信息
+        if self.print_info:
+            print(f"🔍 检查数据完整性，channels: {self.channels}")
         
         valid_cases = []
         missing_count = 0
@@ -244,17 +242,17 @@ class MultimodalDataset(Dataset):
                         
                         if missing_channels:
                             missing_count += 1
-                            if missing_count <= 5:
+                            if self.print_info and missing_count <= 5:
                                 print(f"  ⚠️  {case_id}: 缺少 {missing_channels}")
                         else:
                             valid_cases.append(case_id)
                 except Exception as e:
                     missing_count += 1
-                    if missing_count <= 5:
+                    if self.print_info and missing_count <= 5:
                         print(f"  ❌ {case_id}: 读取失败 - {e}")
             else:
                 missing_count += 1
-                if missing_count <= 5:
+                if self.print_info and missing_count <= 5:
                     print(f"  ❌ {case_id}: 文件不存在")
         
         # 更新数据

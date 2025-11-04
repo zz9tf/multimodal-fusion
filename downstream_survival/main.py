@@ -14,7 +14,8 @@ import numpy as np
 import json
 import torch
 from torch.utils.data import Subset
-from sklearn.model_selection import StratifiedShuffleSplit
+from sklearn.model_selection import StratifiedShuffleSplit, StratifiedKFold
+import re
 
 # 内置工具函数，减少外部依赖
 import pickle
@@ -70,6 +71,7 @@ def _get_model_specific_config(args):
         'lambda2': args.lambda2,
         'tau1': args.tau1,
         'tau2': args.tau2,
+        'return_svd_features': args.return_svd_features,
     }
     
     clip_config = {
@@ -119,6 +121,22 @@ def _get_model_specific_config(args):
             **random_loss_config,
         }
     elif model_type == 'svd_gate_random_clam_detach':
+        return {
+            **clam_config,
+            **transfer_layer_config,
+            **svd_config,
+            **dynamic_gate_config,
+            **random_loss_config,
+        }
+    elif model_type == 'deep_supervise_svd_gate_random':
+        return {
+            **clam_config,
+            **transfer_layer_config,
+            **svd_config,
+            **dynamic_gate_config,
+            **random_loss_config,
+        }
+    elif model_type == 'deep_supervise_svd_gate_random_detach':
         return {
             **clam_config,
             **transfer_layer_config,
@@ -190,7 +208,7 @@ def seed_torch(seed=7):
     os.environ['PYTHONHASHSEED'] = str(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
-    if device.type == 'cuda':
+    if torch.cuda.is_available():
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.benchmark = False
@@ -243,36 +261,44 @@ def create_k_fold_splits(dataset, k=10, seed=42, fixed_test_split=None):
     Returns:
         list: 包含每个fold的train/val/test索引的列表
     """
-    from sklearn.model_selection import StratifiedKFold
     
-    # 获取所有样本的标签和患者ID
+    
+    # 获取所有样本的标签和患者ID（优化：直接使用数据集的映射，避免读取HDF5）
     labels = []
     patient_ids = []
     
-    for i in range(len(dataset)):
-        # 获取样本数据
-        sample = dataset[i]
-        
-        # 从数据集中获取标签
-        if hasattr(dataset, 'get_label'):
-            label = dataset.get_label(i)
-        elif isinstance(sample, dict) and 'label' in sample:
-            label = sample['label']
-        else:
-            # 假设是元组格式 (data, label)
-            _, label = sample
-        
-        labels.append(label)
-        
-        # 获取患者ID（假设数据集有get_patient_id方法，或者从样本中获取）
-        if hasattr(dataset, 'get_patient_id'):
-            patient_id = dataset.get_patient_id(i)
-        elif isinstance(sample, dict) and 'patient_id' in sample:
-            patient_id = sample['patient_id']
-        else:
-            # 如果没有患者ID，使用索引作为ID
-            patient_id = str(i)
-        patient_ids.append(patient_id)
+    # 如果数据集有case_ids和case_to_label映射，直接使用（避免读取HDF5文件）
+    if hasattr(dataset, 'case_ids') and hasattr(dataset, 'case_to_label'):
+        for i, case_id in enumerate(dataset.case_ids):
+            label = dataset.case_to_label[case_id]
+            labels.append(label)
+            patient_ids.append(case_id)
+    else:
+        # 降级：逐个读取样本（较慢，可能卡住）
+        for i in range(len(dataset)):
+            # 获取样本数据
+            sample = dataset[i]
+            
+            # 从数据集中获取标签
+            if hasattr(dataset, 'get_label'):
+                label = dataset.get_label(i)
+            elif isinstance(sample, dict) and 'label' in sample:
+                label = sample['label']
+            else:
+                # 假设是元组格式 (data, label)
+                _, label = sample
+            
+            labels.append(label)
+            
+            # 获取患者ID（假设数据集有get_patient_id方法，或者从样本中获取）
+            if hasattr(dataset, 'get_patient_id'):
+                patient_id = dataset.get_patient_id(i)
+            elif isinstance(sample, dict) and 'patient_id' in sample:
+                patient_id = sample['patient_id']
+            else:
+                # 如果没有患者ID，使用索引作为ID
+                patient_id = str(i)
+            patient_ids.append(patient_id)
     
     labels = np.array(labels)
     patient_ids = np.array(patient_ids)
@@ -280,6 +306,14 @@ def create_k_fold_splits(dataset, k=10, seed=42, fixed_test_split=None):
     splits = []
     
     if fixed_test_split is not None:
+        # 构建数值ID到样本索引的映射，兼容如 "patient_002"、"002"、2 等不同形式
+        numeric_id_to_indices = {}
+        for idx, pid in enumerate(patient_ids):
+            num_id = _extract_numeric_id(pid)
+            if num_id is None:
+                continue
+            numeric_id_to_indices.setdefault(num_id, []).append(idx)
+
         # 使用固定的测试集分割
         print(f"🔒 使用固定测试集分割")
         print(f"📊 固定训练集患者数: {len(fixed_test_split['train'])}")
@@ -287,21 +321,42 @@ def create_k_fold_splits(dataset, k=10, seed=42, fixed_test_split=None):
         
         # 找到测试集对应的索引
         test_indices = []
+        missing_test_ids = []
         for test_patient_id in fixed_test_split['test']:
-            test_idx = np.where(patient_ids == test_patient_id)[0]
-            if len(test_idx) > 0:
-                test_indices.extend(test_idx)
-        
-        test_indices = np.array(test_indices)
+            num_id = _extract_numeric_id(test_patient_id)
+            cand = numeric_id_to_indices.get(num_id, []) if num_id is not None else []
+            if len(cand) > 0:
+                test_indices.extend(cand)
+            else:
+                missing_test_ids.append(test_patient_id)
+
+        test_indices = np.array(test_indices, dtype=int)
+        if len(missing_test_ids) > 0:
+            print(f"⚠️ 固定测试集中有 {len(missing_test_ids)} 个ID未在数据集中找到，例如: {missing_test_ids[:5]}")
         
         # 找到训练集对应的索引
         train_indices = []
+        missing_train_ids = []
         for train_patient_id in fixed_test_split['train']:
-            train_idx = np.where(patient_ids == train_patient_id)[0]
-            if len(train_idx) > 0:
-                train_indices.extend(train_idx)
-        
-        train_indices = np.array(train_indices)
+            num_id = _extract_numeric_id(train_patient_id)
+            cand = numeric_id_to_indices.get(num_id, []) if num_id is not None else []
+            if len(cand) > 0:
+                train_indices.extend(cand)
+            else:
+                missing_train_ids.append(train_patient_id)
+
+        train_indices = np.array(train_indices, dtype=int)
+        if len(missing_train_ids) > 0:
+            print(f"⚠️ 固定训练集中有 {len(missing_train_ids)} 个ID未在数据集中找到，例如: {missing_train_ids[:5]}")
+
+        if train_indices.size == 0:
+            available_sample = patient_ids[:5].tolist()
+            raise ValueError(
+                "固定训练集划分未能与数据集中的样本ID匹配到任何条目。\n"
+                f"请检查ID命名是否一致（大小写/前后缀/类型），或数据源是否对应。\n"
+                f"示例-数据集中可用的前5个ID: {available_sample}\n"
+                f"示例-固定训练集中前5个未命中的ID: {missing_train_ids[:5]}"
+            )
         
         # 在训练集上进行k-fold交叉验证
         train_labels = labels[train_indices]
@@ -366,6 +421,21 @@ def create_k_fold_splits(dataset, k=10, seed=42, fixed_test_split=None):
             })
     
     return splits
+
+def _extract_numeric_id(id_value):
+    """将不同形式的病人ID统一转换为数字ID，用于稳健匹配。"""
+    try:
+        if isinstance(id_value, (int, np.integer)):
+            return int(id_value)
+        if id_value is None:
+            return None
+        s = str(id_value)
+        m = re.findall(r"\d+", s)
+        if not m:
+            return None
+        return int(m[-1])
+    except Exception:
+        return None
 
 def parse_channels(channels):
     """
@@ -687,208 +757,211 @@ def main(args, configs):
     print(f'Results saved to: {os.path.join(args.results_dir, save_name)}')
     print(f'Detailed results for plotting: {os.path.join(args.results_dir, detailed_save_name)}')
 
-# 参数解析
-parser = argparse.ArgumentParser(description='多模态生存状态预测配置')
-
-# 数据相关参数
-parser.add_argument('--data_root_dir', type=str, default=None, 
-                    help='数据根目录')
-parser.add_argument('--results_dir', default='./results', 
-                    help='结果保存目录 (default: ./results)')
-parser.add_argument('--csv_path', type=str, default='dataset_csv/survival_status_labels.csv', 
-                    help='CSV文件路径')
-# 对齐模型相关参数
-parser.add_argument('--alignment_model_path', type=str, default=None, 
-                    help='预训练对齐模型路径（提供此参数将自动启用对齐功能）')
-# 多模态相关参数
-parser.add_argument('--target_channels', type=str, nargs='+', 
-                    default=['CD3', 'CD8', 'CD56', 'CD68', 'CD163', 'HE', 'MHC1', 'PDL1'], 
-                    help='目标通道')
-parser.add_argument('--aligned_channels', type=str, nargs='*', 
-                    default=None,
-                    help='对齐目标，格式: channel_to_align1=align_channel_name1 channel_to_align2=align_channel_name2 ...')
-# 实验相关参数
-parser.add_argument('--exp_code', type=str, 
-                    help='实验代码，用于保存结果')
-parser.add_argument('--seed', type=int, default=1, 
-                    help='随机种子 (default: 1)')
-parser.add_argument('--k', type=int, default=10, 
-                    help='fold数量 (default: 10)')
-parser.add_argument('--split_mode', type=str, choices=['random', 'fixed'], default='random',
-                    help='数据集分割模式: random=随机分割(80% train, 10% val, 10% test), fixed=固定测试集分割 (default: random)')
-parser.add_argument('--dataset_split_path', type=str, default=None,
-                    help='固定测试集分割JSON文件路径 (仅在split_mode=fixed时使用)')
-parser.add_argument('--max_epochs', type=int, default=200,
-                    help='最大训练轮数 (default: 200)')
-parser.add_argument('--lr', type=float, default=1e-4,
-                    help='学习率 (default: 0.0001)')
-parser.add_argument('--reg', type=float, default=1e-5,
-                    help='权重衰减 (default: 1e-5)')
-parser.add_argument('--opt', type=str, choices=['adam', 'sgd'], default='adam',
-                    help='优化器类型')
-parser.add_argument('--early_stopping', action='store_true', default=False, 
-                    help='启用早停')
-parser.add_argument('--batch_size', type=int, default=64,
-                    help='批次大小 (default: 64)')
-parser.add_argument('--lr_scheduler', type=str, 
-                    choices=['none', 'cosine', 'cosine_warm_restart', 'step', 'plateau', 'exponential'], 
-                    default='none',
-                    help='学习率调度器类型 (default: none)')
-parser.add_argument('--lr_scheduler_params', type=str, default='{}',
-                    help='学习率调度器参数 (JSON字符串，默认: {})')
-
-# 模型相关参数
-parser.add_argument('--model_type', type=str, choices=[
-    'mil', 'clam', 'auc_clam', 'clam_mlp', 'clam_mlp_detach', 'svd_gate_random_clam', 'svd_gate_random_clam_detach', 
-    'gate_shared_mil', 'gate_mil_detach', 'gate_mil', 'gate_auc_mil', 'clip_gate_random_clam', 'clip_gate_random_clam_detach'
-    ], 
-                    default='clam', help='模型类型 (default: clam)')
-parser.add_argument('--input_dim', type=int, default=1024,
-                    help='输入维度')
-parser.add_argument('--dropout', type=float, default=0.25, 
-                    help='dropout率')
-parser.add_argument('--n_classes', type=int, default=2,
-                    help='类别数 (default: 2)')
-parser.add_argument('--base_loss_fn', type=str, choices=['svm', 'ce'], default='ce',
-                    help='slide级别分类损失函数 (default: ce)')
-
-# CLAM 相关参数
-parser.add_argument('--gate', action='store_true', default=True, 
-                    help='CLAM: 使用门控注意力机制')
-parser.add_argument('--base_weight', type=float, default=0.7,
-                    help='CLAM: bag级别损失权重系数 (default: 0.7)')
-parser.add_argument('--inst_loss_fn', type=str, choices=['svm', 'ce', None], default=None,
-                    help='CLAM: 实例级别聚类损失函数 (default: None)')
-parser.add_argument('--model_size', type=str, 
-                    choices=['small', 'big', '128*64', '64*32', '32*16', '16*8', '8*4', '4*2', '2*1'], 
-                    default='small', help='模型大小')
-parser.add_argument('--subtyping', action='store_true', default=False, 
-                    help='子类型问题')
-parser.add_argument('--inst_number', type=int, default=8, 
-                    help='CLAM: 正负样本采样数量')
-parser.add_argument('--channels_used_in_model', type=str, nargs='+', 
-                    default=['features', 'CD3', 'CD8', 'CD56', 'CD68', 'CD163', 'HE', 'MHC1', 'PDL1'],
-                    help='模型中需要使用的通道')
-parser.add_argument('--return_features', action='store_true', default=False, 
-                    help='MIL & CLAM: 返回特征')
-parser.add_argument('--attention_only', action='store_true', default=False, 
-                    help='CLAM: 仅返回注意力')
-
-# Transfer layer
-parser.add_argument('--output_dim', type=int, default=128, 
-                    help='Transfer layer: 模态统一的输出维度')
-
-# SVD相关参数
-parser.add_argument('--enable_svd', action='store_true', default=False, 
-                    help='SVD: 启用SVD')
-parser.add_argument('--alignment_layer_num', type=int, default=2,
-                    help='SVD: 对齐层数')
-parser.add_argument('--lambda1', type=float, default=1.0,
-                    help='SVD: 对齐损失权重')
-parser.add_argument('--lambda2', type=float, default=0.0,
-                    help='SVD: 对齐损失权重')
-parser.add_argument('--tau1', type=float, default=0.1,
-                    help='SVD: 对齐损失权重')
-parser.add_argument('--tau2', type=float, default=0.05,
-                    help='SVD: 对齐损失权重')
-
-# CLIP相关参数
-parser.add_argument('--enable_clip', action='store_true', default=False, 
-                    help='CLIP: 启用CLIP')
-parser.add_argument('--clip_init_tau', type=float, default=0.07,
-                    help='CLIP: 初始tau')
-
-# Dynamic Gate相关参数
-parser.add_argument('--enable_dynamic_gate', action='store_true', default=False, 
-                    help='Dynamic Gate: 启用动态门控')
-parser.add_argument('--confidence_weight', type=float, default=1.0,
-                    help='Dynamic Gate: 置信度权重')
-parser.add_argument('--feature_weight_weight', type=float, default=1.0,
-                    help='Dynamic Gate: 特征权重权重')
-
-# AUC相关参数
-parser.add_argument('--auc_loss_weight', type=float, default=1.0,
-                    help='AUC: AUC损失权重')
-
-# Random Loss相关参数
-parser.add_argument('--enable_random_loss', action='store_true', default=False, 
-                    help='Random Loss: 启用随机损失')
-parser.add_argument('--weight_random_loss', type=float, default=0.1, 
-                    help='Random Loss: 随机损失权重')
-# 解析参数
-args = parser.parse_args()
-args.target_channels = parse_channels(args.target_channels)
-args.aligned_channels = parse_channels(args.aligned_channels)
-args.channels_used_in_model = parse_channels(args.channels_used_in_model)
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-# 设置随机种子
-seed_torch(args.seed)
-
-# 创建结果目录
-if not os.path.isdir(args.results_dir):
-    os.mkdir(args.results_dir)
-
-# 创建带时间戳的结果目录
-args.results_dir = os.path.join(
-    args.results_dir, 
-    datetime.now().strftime("%Y%m%d-%H%M%S") + '_' + str(args.exp_code) + '_s{}'.format(args.seed)
-)
-if not os.path.isdir(args.results_dir):
-    os.mkdir(args.results_dir)
-
-# 创建精简的分类配置字典
-configs = {
-    'experiment_config': {
-        'data_root_dir': args.data_root_dir,
-        'results_dir': args.results_dir,
-        'csv_path': args.csv_path,
-        'alignment_model_path': args.alignment_model_path,
-        'target_channels': args.target_channels,
-        'aligned_channels': args.aligned_channels,
-        'exp_code': args.exp_code,
-        'seed': args.seed,
-        'num_splits': args.k,
-        'split_mode': args.split_mode,
-        'dataset_split_path': args.dataset_split_path,
-        'max_epochs': args.max_epochs,
-        'lr': args.lr,
-        'reg': args.reg,
-        'opt': args.opt,
-        'early_stopping': args.early_stopping,
-        'batch_size': args.batch_size,
-        'scheduler_config': {
-            'type': args.lr_scheduler if args.lr_scheduler != 'none' else None,
-            **(json.loads(args.lr_scheduler_params) if args.lr_scheduler_params else {})
-        }
-    },
-    
-    'model_config': {
-        'model_type': args.model_type,
-        'input_dim': args.input_dim,
-        'dropout': args.dropout,
-        'n_classes': args.n_classes,
-        'base_loss_fn': args.base_loss_fn,
-        'channels_used_in_model': args.channels_used_in_model,
-        **_get_model_specific_config(args)
-    }
-}
-
-# 保存分类配置
-with open(args.results_dir + '/configs_{}.json'.format(args.exp_code), 'w') as f:
-    json.dump(configs, f, indent=2)
-
-# 打印精简配置
-print("################# Configuration ###################")
-print(f"\n📋 EXPERIMENT CONFIG:")
-for key, val in configs['experiment_config'].items():
-    print(f"  {key}: {val}")
-
-print(f"\n📋 MODEL CONFIG:")
-for key, val in configs['model_config'].items():
-    print(f"  {key}: {val}")
 
 if __name__ == "__main__":
+    # 参数解析
+    parser = argparse.ArgumentParser(description='多模态生存状态预测配置')
+
+    # 数据相关参数
+    parser.add_argument('--data_root_dir', type=str, default=None, 
+                        help='数据根目录')
+    parser.add_argument('--results_dir', default='./results', 
+                        help='结果保存目录 (default: ./results)')
+    parser.add_argument('--csv_path', type=str, default='dataset_csv/survival_status_labels.csv', 
+                        help='CSV文件路径')
+    # 对齐模型相关参数
+    parser.add_argument('--alignment_model_path', type=str, default=None, 
+                        help='预训练对齐模型路径（提供此参数将自动启用对齐功能）')
+    # 多模态相关参数
+    parser.add_argument('--target_channels', type=str, nargs='+', 
+                        default=['CD3', 'CD8', 'CD56', 'CD68', 'CD163', 'HE', 'MHC1', 'PDL1'], 
+                        help='目标通道')
+    parser.add_argument('--aligned_channels', type=str, nargs='*', 
+                        default=None,
+                        help='对齐目标，格式: channel_to_align1=align_channel_name1 channel_to_align2=align_channel_name2 ...')
+    # 实验相关参数
+    parser.add_argument('--exp_code', type=str, 
+                        help='实验代码，用于保存结果')
+    parser.add_argument('--seed', type=int, default=1, 
+                        help='随机种子 (default: 1)')
+    parser.add_argument('--k', type=int, default=10, 
+                        help='fold数量 (default: 10)')
+    parser.add_argument('--split_mode', type=str, choices=['random', 'fixed'], default='random',
+                        help='数据集分割模式: random=随机分割(80% train, 10% val, 10% test), fixed=固定测试集分割 (default: random)')
+    parser.add_argument('--dataset_split_path', type=str, default=None,
+                        help='固定测试集分割JSON文件路径 (仅在split_mode=fixed时使用)')
+    parser.add_argument('--max_epochs', type=int, default=200,
+                        help='最大训练轮数 (default: 200)')
+    parser.add_argument('--lr', type=float, default=1e-4,
+                        help='学习率 (default: 0.0001)')
+    parser.add_argument('--reg', type=float, default=1e-5,
+                        help='权重衰减 (default: 1e-5)')
+    parser.add_argument('--opt', type=str, choices=['adam', 'sgd'], default='adam',
+                        help='优化器类型')
+    parser.add_argument('--early_stopping', action='store_true', default=False, 
+                        help='启用早停')
+    parser.add_argument('--batch_size', type=int, default=64,
+                        help='批次大小 (default: 64)')
+    parser.add_argument('--lr_scheduler', type=str, 
+                        choices=['none', 'cosine', 'cosine_warm_restart', 'step', 'plateau', 'exponential'], 
+                        default='none',
+                        help='学习率调度器类型 (default: none)')
+    parser.add_argument('--lr_scheduler_params', type=str, default='{}',
+                        help='学习率调度器参数 (JSON字符串，默认: {})')
+
+    # 模型相关参数
+    parser.add_argument('--model_type', type=str, choices=[
+        'mil', 'clam', 'auc_clam', 'clam_mlp', 'clam_mlp_detach', 'svd_gate_random_clam', 'svd_gate_random_clam_detach', 
+        'gate_shared_mil', 'gate_mil_detach', 'gate_mil', 'gate_auc_mil', 'clip_gate_random_clam', 'clip_gate_random_clam_detach',
+        'deep_supervise_svd_gate_random', 'deep_supervise_svd_gate_random_detach'
+        ], 
+                        default='clam', help='模型类型 (default: clam)')
+    parser.add_argument('--input_dim', type=int, default=1024,
+                        help='输入维度')
+    parser.add_argument('--dropout', type=float, default=0.25, 
+                        help='dropout率')
+    parser.add_argument('--n_classes', type=int, default=2,
+                        help='类别数 (default: 2)')
+    parser.add_argument('--base_loss_fn', type=str, choices=['svm', 'ce'], default='ce',
+                        help='slide级别分类损失函数 (default: ce)')
+
+    # CLAM 相关参数
+    parser.add_argument('--gate', action='store_true', default=True, 
+                        help='CLAM: 使用门控注意力机制')
+    parser.add_argument('--base_weight', type=float, default=0.7,
+                        help='CLAM: bag级别损失权重系数 (default: 0.7)')
+    parser.add_argument('--inst_loss_fn', type=str, choices=['svm', 'ce', None], default=None,
+                        help='CLAM: 实例级别聚类损失函数 (default: None)')
+    parser.add_argument('--model_size', type=str, 
+                        choices=['small', 'big', '128*64', '64*32', '32*16', '16*8', '8*4', '4*2', '2*1'], 
+                        default='small', help='模型大小')
+    parser.add_argument('--subtyping', action='store_true', default=False, 
+                        help='子类型问题')
+    parser.add_argument('--inst_number', type=int, default=8, 
+                        help='CLAM: 正负样本采样数量')
+    parser.add_argument('--channels_used_in_model', type=str, nargs='+', 
+                        default=['features', 'CD3', 'CD8', 'CD56', 'CD68', 'CD163', 'HE', 'MHC1', 'PDL1'],
+                        help='模型中需要使用的通道')
+    parser.add_argument('--return_features', action='store_true', default=False, 
+                        help='MIL & CLAM: 返回特征')
+    parser.add_argument('--attention_only', action='store_true', default=False, 
+                        help='CLAM: 仅返回注意力')
+
+    # Transfer layer
+    parser.add_argument('--output_dim', type=int, default=128, 
+                        help='Transfer layer: 模态统一的输出维度')
+
+    # SVD相关参数
+    parser.add_argument('--enable_svd', action='store_true', default=False, 
+                        help='SVD: 启用SVD')
+    parser.add_argument('--alignment_layer_num', type=int, default=2,
+                        help='SVD: 对齐层数')
+    parser.add_argument('--lambda1', type=float, default=1.0,
+                        help='SVD: 对齐损失权重')
+    parser.add_argument('--lambda2', type=float, default=0.0,
+                        help='SVD: 对齐损失权重')
+    parser.add_argument('--tau1', type=float, default=0.1,
+                        help='SVD: 对齐损失权重')
+    parser.add_argument('--tau2', type=float, default=0.05,
+                        help='SVD: 对齐损失权重')
+    parser.add_argument('--return_svd_features', action='store_true', default=False, 
+                        help='SVD: 返回SVD特征')
+
+    # CLIP相关参数
+    parser.add_argument('--enable_clip', action='store_true', default=False, 
+                        help='CLIP: 启用CLIP')
+    parser.add_argument('--clip_init_tau', type=float, default=0.07,
+                        help='CLIP: 初始tau')
+
+    # Dynamic Gate相关参数
+    parser.add_argument('--enable_dynamic_gate', action='store_true', default=False, 
+                        help='Dynamic Gate: 启用动态门控')
+    parser.add_argument('--confidence_weight', type=float, default=1.0,
+                        help='Dynamic Gate: 置信度权重')
+    parser.add_argument('--feature_weight_weight', type=float, default=1.0,
+                        help='Dynamic Gate: 特征权重权重')
+
+    # AUC相关参数
+    parser.add_argument('--auc_loss_weight', type=float, default=1.0,
+                        help='AUC: AUC损失权重')
+
+    # Random Loss相关参数
+    parser.add_argument('--enable_random_loss', action='store_true', default=False, 
+                        help='Random Loss: 启用随机损失')
+    parser.add_argument('--weight_random_loss', type=float, default=0.1, 
+                        help='Random Loss: 随机损失权重')
+    # 解析参数
+    args = parser.parse_args()
+    args.target_channels = parse_channels(args.target_channels)
+    args.aligned_channels = parse_channels(args.aligned_channels)
+    args.channels_used_in_model = parse_channels(args.channels_used_in_model)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # 设置随机种子
+    seed_torch(args.seed)
+
+    # 创建结果目录
+    if not os.path.isdir(args.results_dir):
+        os.mkdir(args.results_dir)
+
+    # 创建带时间戳的结果目录
+    args.results_dir = os.path.join(
+        args.results_dir, 
+        datetime.now().strftime("%Y%m%d-%H%M%S") + '_' + str(args.exp_code) + '_s{}'.format(args.seed)
+    )
+    if not os.path.isdir(args.results_dir):
+        os.mkdir(args.results_dir)
+
+    # 创建精简的分类配置字典
+    configs = {
+        'experiment_config': {
+            'data_root_dir': args.data_root_dir,
+            'results_dir': args.results_dir,
+            'csv_path': args.csv_path,
+            'alignment_model_path': args.alignment_model_path,
+            'target_channels': args.target_channels,
+            'aligned_channels': args.aligned_channels,
+            'exp_code': args.exp_code,
+            'seed': args.seed,
+            'num_splits': args.k,
+            'split_mode': args.split_mode,
+            'dataset_split_path': args.dataset_split_path,
+            'max_epochs': args.max_epochs,
+            'lr': args.lr,
+            'reg': args.reg,
+            'opt': args.opt,
+            'early_stopping': args.early_stopping,
+            'batch_size': args.batch_size,
+            'scheduler_config': {
+                'type': args.lr_scheduler if args.lr_scheduler != 'none' else None,
+                **(json.loads(args.lr_scheduler_params) if args.lr_scheduler_params else {})
+            }
+        },
+        
+        'model_config': {
+            'model_type': args.model_type,
+            'input_dim': args.input_dim,
+            'dropout': args.dropout,
+            'n_classes': args.n_classes,
+            'base_loss_fn': args.base_loss_fn,
+            'channels_used_in_model': args.channels_used_in_model,
+            **_get_model_specific_config(args)
+        }
+    }
+
+    # 保存分类配置
+    with open(args.results_dir + '/configs_{}.json'.format(args.exp_code), 'w') as f:
+        json.dump(configs, f, indent=2)
+
+    # 打印精简配置
+    print("################# Configuration ###################")
+    print(f"\n📋 EXPERIMENT CONFIG:")
+    for key, val in configs['experiment_config'].items():
+        print(f"  {key}: {val}")
+
+    print(f"\n📋 MODEL CONFIG:")
+    for key, val in configs['model_config'].items():
+        print(f"  {key}: {val}")
     results = main(args, configs)
     print("finished!")
     print("end script")

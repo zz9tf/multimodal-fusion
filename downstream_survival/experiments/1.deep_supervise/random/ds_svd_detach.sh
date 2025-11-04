@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # =============================================================================
-# SVD + Random Loss 实验脚本（尽量不启用 Dynamic Gate 的影响）
-# 说明：当前模型默认启用动态门控，为尽量隔离其影响，将权重设为0。
+# SVD-only 实验脚本
+# 仅使用SVD对齐功能的多模态融合实验
 # =============================================================================
 
 # 环境设置
@@ -10,17 +10,17 @@ source ~/zheng/miniconda3/etc/profile.d/conda.sh
 conda activate multimodal-fusion
 cd /home/zheng/zheng/multimodal-fusion/downstream_survival
 
-CUDA_DEVICE=0
+CUDA_DEVICE=1
 export CUDA_VISIBLE_DEVICES="$CUDA_DEVICE"
 
 # 数据相关参数
-DATA_ROOT_DIR="/home/zheng/zheng/public/4"
+DATA_ROOT_DIR="/home/zheng/zheng/public/5"
 RESULTS_DIR="/home/zheng/zheng/multimodal-fusion/downstream_survival/results"
 CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv"
 TARGET_CHANNELS="wsi tma clinical pathological blood icd tma_cell_density"
 
 # 实验 & 训练参数
-EXP_CODE="clip_random_clam_random_detach"
+EXP_CODE="ds_svd_detach"
 SEED=5678
 K_FOLDS=10
 SPLIT_MODE="random"
@@ -30,16 +30,17 @@ LR_SCHEDULER="plateau"
 LR_SCHEDULER_PARAMS='{"mode": "min", "patience": 15, "factor": 0.5}'
 WEIGHT_DECAY=1e-5
 OPTIMIZER="adam"
-EARLY_STOPPING="--early_stopping"
+EARLY_STOPPING="--early_stopping"  # 启用早停
 BATCH_SIZE=64
 
-# 模型与CLAM参数
-MODEL_TYPE="clip_gate_random_clam"
+# 模型参数
+MODEL_TYPE="deep_supervise_svd_gate_random_detach"
 INPUT_DIM=1024
 DROPOUT=0.25
 N_CLASSES=2
 BASE_LOSS_FN="ce"
-GATE="--gate"
+
+# CLAM特定参数
 BASE_WEIGHT=0.9
 INST_LOSS_FN="ce"
 MODEL_SIZE="64*32"
@@ -48,17 +49,19 @@ INST_NUMBER=8
 CHANNELS_USED_IN_MODEL="wsi tma clinical pathological blood icd tma_cell_density"
 OUTPUT_DIM=128
 
-# CLIP参数
-ENABLE_CLIP="--enable_clip"
+# SVD特定参数 - 启用SVD对齐
+ENABLE_SVD="--enable_svd"
 ALIGNMENT_LAYER_NUM=2
-CLIP_INIT_TAU=0.07
+LAMBDA1=0.1
+LAMBDA2=0.1
+TAU1=1.0
+TAU2=1.0
 
-# Random Loss参数
-ENABLE_RANDOM_LOSS="--enable_random_loss"
-WEIGHT_RANDOM_LOSS=0.1
+echo "🚀 开始Deep Supervise + SVD实验..."
+echo "📊 实验代码: $EXP_CODE"
+echo "🎯 目标通道: $TARGET_CHANNELS"
 
-echo "🚀 开始 CLIP + Random Loss 实验..."
-
+# 运行训练
 python main.py \
     --data_root_dir "$DATA_ROOT_DIR" \
     --results_dir "$RESULTS_DIR" \
@@ -81,7 +84,6 @@ python main.py \
     --dropout $DROPOUT \
     --n_classes $N_CLASSES \
     --base_loss_fn $BASE_LOSS_FN \
-    --gate $GATE \
     --base_weight $BASE_WEIGHT \
     --inst_loss_fn $INST_LOSS_FN \
     --model_size $MODEL_SIZE \
@@ -89,10 +91,12 @@ python main.py \
     --inst_number $INST_NUMBER \
     --channels_used_in_model $CHANNELS_USED_IN_MODEL \
     --output_dim $OUTPUT_DIM \
-    $ENABLE_CLIP \
+    $ENABLE_SVD \
     --alignment_layer_num $ALIGNMENT_LAYER_NUM \
-    --clip_init_tau $CLIP_INIT_TAU \
-    $ENABLE_RANDOM_LOSS \
-    --weight_random_loss $WEIGHT_RANDOM_LOSS
+    --lambda1 $LAMBDA1 \
+    --lambda2 $LAMBDA2 \
+    --tau1 $TAU1 \
+    --tau2 $TAU2
 
-echo "✅ CLIP + Random Loss 实验完成!"
+
+echo "✅ Deep Supervise + SVD实验完成!"

@@ -3,11 +3,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 from .svd_gate_random_clam import SVDGateRandomClam
 import random
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple
 
-class SVDGateRandomClamDetach(SVDGateRandomClam):
+class DeepSuperviseSVDGateRandomClam(SVDGateRandomClam):
     """
-    CLAM MLP Detach 模型
+    CLAM MLP 模型
     
     配置参数：
     - n_classes: 类别数量
@@ -22,6 +22,30 @@ class SVDGateRandomClamDetach(SVDGateRandomClam):
     
     def __init__(self, config):
         super().__init__(config)
+        
+        self.init_deep_supervise_layers()
+        self.deep_supervise_fn = nn.CrossEntropyLoss(reduction='mean')
+    
+    def init_deep_supervise_layers(self):
+        self.ClassifierCreator = lambda: nn.Sequential(
+            nn.Linear(self.output_dim, self.size[1]), 
+            nn.ReLU(),
+            nn.Dropout(self.dropout), 
+            nn.Linear(self.size[1], self.n_classes)
+        )
+        
+        self.Classifier = nn.ModuleDict({channel: self.ClassifierCreator() for channel in self.used_modality})
+        
+    def deep_supervise_forward(self, channel: str, feature: torch.Tensor, labels: torch.Tensor) -> Dict[str, torch.Tensor]:
+        """
+        计算深度监督前向传播
+        """
+        logits = self.Classifier[channel](feature)
+        logits_loss = self.deep_supervise_fn(logits, labels)
+        return {
+            'logits': logits, 
+            'logits_loss': logits_loss
+        }
 
     def forward(self, input_data, label):
         """
@@ -47,16 +71,19 @@ class SVDGateRandomClamDetach(SVDGateRandomClam):
                 clam_result_kwargs = self._clam_forward(channel, input_data[channel], label)
                 for key, value in clam_result_kwargs.items():
                     result_kwargs[f'{channel}_{key}'] = value
-                features_dict[channel] = clam_result_kwargs['features'].detach()
+                features_dict[channel] = clam_result_kwargs['features']
             elif channel == 'tma=features':
                 clam_result_kwargs = self._clam_forward(channel, input_data[channel], label)
                 for key, value in clam_result_kwargs.items():
                     result_kwargs[f'{channel}_{key}'] = value
-                features_dict[channel] = clam_result_kwargs['features'].detach()
+                features_dict[channel] = clam_result_kwargs['features']
             else:
                 if channel not in self.transfer_layer:
                     self.transfer_layer[channel] = self.create_transfer_layer(input_data[channel].shape[1])
                 features_dict[channel] = self.transfer_layer[channel](input_data[channel])
+                deep_supervise_result_kwargs = self.deep_supervise_forward(channel, features_dict[channel], label)
+                for key, value in deep_supervise_result_kwargs.items():
+                    result_kwargs[f'{channel}_{key}'] = value
         
         if self.enable_svd:
             if not hasattr(self, 'alignment_features'):
@@ -92,12 +119,12 @@ class SVDGateRandomClamDetach(SVDGateRandomClam):
                 else:
                     h_partial.append(torch.zeros_like(features_dict[modality]).to(self.device))
             h_partial = torch.cat(h_partial, dim=1).to(self.device)
-            logits = self.fusion_prediction(h_partial.detach())
+            logits = self.fusion_prediction(h_partial)
             result_kwargs['random_partial_loss'] = self.base_loss_fn(logits, label)
             
         h = torch.cat(list(features_dict.values()), dim=1).to(self.device)
 
-        logits = self.fusion_prediction(h.detach())
+        logits = self.fusion_prediction(h)
         Y_prob = F.softmax(logits, dim = 1)
         Y_hat = torch.topk(logits, 1, dim = 1)[1]
         

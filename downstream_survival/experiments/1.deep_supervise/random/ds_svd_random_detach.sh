@@ -20,7 +20,7 @@ CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/su
 TARGET_CHANNELS="wsi tma clinical pathological blood icd tma_cell_density"
 
 # 实验 & 训练参数
-EXP_CODE="clip_random_clam_random_detach"
+EXP_CODE="ds_svd_random_detach"
 SEED=5678
 K_FOLDS=10
 SPLIT_MODE="random"
@@ -34,7 +34,7 @@ EARLY_STOPPING="--early_stopping"
 BATCH_SIZE=64
 
 # 模型与CLAM参数
-MODEL_TYPE="clip_gate_random_clam"
+MODEL_TYPE="deep_supervise_svd_gate_random_detach"
 INPUT_DIM=1024
 DROPOUT=0.25
 N_CLASSES=2
@@ -48,16 +48,23 @@ INST_NUMBER=8
 CHANNELS_USED_IN_MODEL="wsi tma clinical pathological blood icd tma_cell_density"
 OUTPUT_DIM=128
 
-# CLIP参数
-ENABLE_CLIP="--enable_clip"
+# SVD特定参数 - 启用SVD对齐
+ENABLE_SVD="--enable_svd"
 ALIGNMENT_LAYER_NUM=2
-CLIP_INIT_TAU=0.07
+LAMBDA1=0.1
+LAMBDA2=0.1
+TAU1=1.0
+TAU2=1.0
 
 # Random Loss参数
 ENABLE_RANDOM_LOSS="--enable_random_loss"
 WEIGHT_RANDOM_LOSS=0.1
 
-echo "🚀 开始 CLIP + Random Loss 实验..."
+echo "🚀 开始 Deep Supervise + SVD + Random Loss 实验..."
+echo "📊 实验代码: $EXP_CODE"
+echo "🎯 目标通道: $TARGET_CHANNELS"
+echo "🔧 SVD参数: ALIGNMENT_LAYER_NUM=$ALIGNMENT_LAYER_NUM, LAMBDA1=$LAMBDA1, LAMBDA2=$LAMBDA2, TAU1=$TAU1, TAU2=$TAU2"
+echo "🔧 Random Loss参数: WEIGHT_RANDOM_LOSS=$WEIGHT_RANDOM_LOSS"
 
 python main.py \
     --data_root_dir "$DATA_ROOT_DIR" \
@@ -89,10 +96,13 @@ python main.py \
     --inst_number $INST_NUMBER \
     --channels_used_in_model $CHANNELS_USED_IN_MODEL \
     --output_dim $OUTPUT_DIM \
-    $ENABLE_CLIP \
+    $ENABLE_SVD \
     --alignment_layer_num $ALIGNMENT_LAYER_NUM \
-    --clip_init_tau $CLIP_INIT_TAU \
+    --lambda1 $LAMBDA1 \
+    --lambda2 $LAMBDA2 \
+    --tau1 $TAU1 \
+    --tau2 $TAU2
     $ENABLE_RANDOM_LOSS \
     --weight_random_loss $WEIGHT_RANDOM_LOSS
 
-echo "✅ CLIP + Random Loss 实验完成!"
+echo "✅ Deep Supervise + SVD + Random Loss 实验完成!"
