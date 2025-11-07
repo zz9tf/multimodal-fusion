@@ -85,10 +85,11 @@ class DeepSuperviseSVDGateRandomClamDetach(DeepSuperviseSVDGateRandomClam):
                     result_kwargs[f'gated_{key}'] = value
                 features_dict = result['gated_features']
                 
-        if self.enable_random_loss:
-            drop_modality = random.sample(list(features_dict.keys()), random.randint(1, len(features_dict)-1))
+        if self.enable_random_loss and self.training:
+            sorted_keys = sorted(features_dict.keys())
+            drop_modality = random.sample(sorted_keys, random.randint(1, len(features_dict)-1))
             h_partial = []
-            for modality in features_dict.keys():
+            for modality in sorted_keys:
                 if modality not in drop_modality:
                     h_partial.append(features_dict[modality])
                 else:
@@ -97,7 +98,8 @@ class DeepSuperviseSVDGateRandomClamDetach(DeepSuperviseSVDGateRandomClam):
             logits = self.fusion_prediction(h_partial.detach())
             result_kwargs['random_partial_loss'] = self.base_loss_fn(logits, label)
             
-        h = torch.cat(list(features_dict.values()), dim=1).to(self.device)
+        sorted_keys = sorted(features_dict.keys())
+        h = torch.cat([features_dict[mod] for mod in sorted_keys], dim=1).to(self.device)
 
         logits = self.fusion_prediction(h.detach())
         Y_prob = F.softmax(logits, dim = 1)

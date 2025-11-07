@@ -22,8 +22,7 @@ TARGET_CHANNELS="wsi tma clinical pathological blood icd tma_cell_density"
 EXP_CODE="svd_dynamic_clam_detach"
 SEED=5678
 K_FOLDS=10
-SPLIT_MODE="fixed"
-DATASET_SPLIT_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/dataset_split_in.json"
+SPLIT_MODE="random"
 MAX_EPOCHS=200
 LEARNING_RATE=1e-4
 LR_SCHEDULER="plateau"
@@ -72,7 +71,6 @@ python main.py \
     --seed $SEED \
     --k $K_FOLDS \
     --split_mode $SPLIT_MODE \
-    --dataset_split_path $DATASET_SPLIT_PATH \
     --max_epochs $MAX_EPOCHS \
     --lr $LEARNING_RATE \
     --lr_scheduler $LR_SCHEDULER \

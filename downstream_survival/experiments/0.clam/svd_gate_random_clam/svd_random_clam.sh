@@ -23,8 +23,7 @@ TARGET_CHANNELS="wsi tma clinical pathological blood icd tma_cell_density"
 EXP_CODE="svd_random_clam"
 SEED=5678
 K_FOLDS=10
-SPLIT_MODE="fixed"
-DATASET_SPLIT_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/dataset_split_in.json"
+SPLIT_MODE="random"
 MAX_EPOCHS=200
 LEARNING_RATE=1e-4
 LR_SCHEDULER="plateau"
@@ -79,7 +78,6 @@ python main.py \
     --reg $WEIGHT_DECAY \
     --opt $OPTIMIZER \
     $EARLY_STOPPING \
-    --dataset_split_path $DATASET_SPLIT_PATH \
     --batch_size $BATCH_SIZE \
     --model_type $MODEL_TYPE \
     --input_dim $INPUT_DIM \
@@ -101,7 +99,6 @@ python main.py \
     --tau1 $TAU1 \
     --tau2 $TAU2 \
     $ENABLE_RANDOM_LOSS \
-    --enable_svd $ENABLE_SVD \
     --weight_random_loss $WEIGHT_RANDOM_LOSS
 
 echo "✅ SVD + Random Loss 实验完成!"

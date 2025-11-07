@@ -70,7 +70,7 @@ class ModelFactory:
         
         # 验证模型类型
         if model_type not in ModelFactory.MODEL_REGISTRY:
-            raise ValueError(f"不支持的模型类型: {model_type}，支持的类型: {list(ModelFactory.MODEL_REGISTRY.keys())}")
+            raise ValueError(f"不支持的模型类型: {model_type}，支持的类型: {sorted(ModelFactory.MODEL_REGISTRY.keys())}")
         
         model_class = ModelFactory.MODEL_REGISTRY[model_type]
         
@@ -106,9 +106,9 @@ class ModelFactory:
         获取支持的模型类型列表
         
         Returns:
-            list: 支持的模型类型列表
+            list: 支持的模型类型列表（按字母顺序排序）
         """
-        return list(ModelFactory.MODEL_REGISTRY.keys())
+        return sorted(ModelFactory.MODEL_REGISTRY.keys())
     
     @staticmethod
     def validate_model_config(config: Dict[str, Any]) -> bool:

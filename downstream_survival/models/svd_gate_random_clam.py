@@ -25,7 +25,6 @@ class SVDGateRandomClam(ClamMLP):
         
         self.enable_dynamic_gate = config.get('enable_dynamic_gate', True)
         self.enable_svd = config.get('enable_svd', True)
-        
         if self.enable_dynamic_gate:
             self._init_dynamic_gated_model()
         if self.enable_svd:
@@ -60,13 +59,13 @@ class SVDGateRandomClam(ClamMLP):
         self.TCPConfidenceLayer = nn.ModuleDict({channel: self.TCPConfidenceLayerCreator() for channel in self.used_modality})
         self.TCPLogitsLoss_fn = nn.CrossEntropyLoss(reduction='none')
         self.TCPConfidenceLoss_fn = nn.MSELoss(reduction='none')
-        
+
     def _init_align_model(self):
         self.alignment_layers_creator = lambda: nn.Sequential(*[
             nn.Linear(self.output_dim, self.output_dim)
             for _ in range(self.alignment_layer_num)
         ])
-        self.alignment_layers = nn.ModuleDict({channel: self.alignment_layers_creator() for channel in self.alignment_channels})
+        self.alignment_layers = nn.ModuleDict({channel: self.alignment_layers_creator() for channel in sorted(self.alignment_channels)})
 
     def gated_forward(self, features: Dict[str, torch.Tensor], labels: torch.Tensor) -> Dict[str, torch.Tensor]:
         """
@@ -76,7 +75,8 @@ class SVDGateRandomClam(ClamMLP):
         confidence_loss = 0.0
         gated_features = {}
         
-        for channel, feature in features.items():
+        for channel in sorted(features.keys()):
+            feature = features[channel]
             logits = self.TCPClassifier[channel](feature)
             logits_loss = torch.mean(self.TCPLogitsLoss_fn(logits, labels))
             
@@ -99,7 +99,8 @@ class SVDGateRandomClam(ClamMLP):
         计算对齐前向传播
         """
         aligned_features = {}
-        for channel, feature in features.items():
+        for channel in sorted(features.keys()):
+            feature = features[channel]
             aligned_features[channel] = self.alignment_layers[channel](feature)
         return aligned_features
         
@@ -240,10 +241,11 @@ class SVDGateRandomClam(ClamMLP):
                     result_kwargs[f'gated_{key}'] = value
                 features_dict = result['gated_features']
                 
-        if self.enable_random_loss:
-            drop_modality = random.sample(list(features_dict.keys()), random.randint(1, len(features_dict)-1))
+        if self.enable_random_loss and self.training:
+            sorted_features_dict_keys = sorted(features_dict.keys())
+            drop_modality = random.sample(sorted_features_dict_keys, random.randint(1, len(features_dict)-1))
             h_partial = []
-            for modality in features_dict.keys():
+            for modality in sorted_features_dict_keys:
                 if modality not in drop_modality:
                     h_partial.append(features_dict[modality])
                 else:
@@ -252,7 +254,7 @@ class SVDGateRandomClam(ClamMLP):
             logits = self.fusion_prediction(h_partial)
             result_kwargs['random_partial_loss'] = self.base_loss_fn(logits, label)
             
-        h = torch.cat(list(features_dict.values()), dim=1).to(self.device)
+        h = torch.cat([features_dict[mod] for mod in sorted(features_dict.keys())], dim=1).to(self.device)
 
         logits = self.fusion_prediction(h)
         Y_prob = F.softmax(logits, dim = 1)
@@ -273,7 +275,7 @@ class SVDGateRandomClam(ClamMLP):
             if key.endswith('_loss'):
                 total_loss += value
         base_loss = self.base_loss_fn(logits, labels)
-        if self.enable_random_loss:
+        if self.enable_random_loss and 'random_partial_loss' in result:
             # MoFe-like hinge: max(0, base_loss - random_partial_loss)
             total_loss += torch.clamp(base_loss - result['random_partial_loss'], min=0.0)
         return base_loss + total_loss

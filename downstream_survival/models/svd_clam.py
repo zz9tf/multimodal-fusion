@@ -378,7 +378,8 @@ class SVD_CLAM(BaseModel):
             svd_values: SVD 特征值 Tensor[num_modalities]
         """
         # 1. SVD 计算和 loss1
-        feature_list = list(aligned_features.values())
+        sorted_keys = sorted(aligned_features.keys())
+        feature_list = [aligned_features[mod] for mod in sorted_keys]
         features = torch.stack(feature_list, dim=-1).squeeze(0)  # [batch_size, feature_dim, num_modalities]
         
         # L2 归一化：x <- x / (||x||_2 + ε)
@@ -430,7 +431,8 @@ class SVD_CLAM(BaseModel):
         
         def fuse(feat_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
             # 将多模态特征拼接为单向量 [N, d*K]
-            return torch.cat(list(feat_dict.values()), dim=1)
+            sorted_keys = sorted(feat_dict.keys())
+            return torch.cat([feat_dict[mod] for mod in sorted_keys], dim=1)
 
         if aligned_negatives is None:
             raise RuntimeError("Negative features not provided by dataset. Ensure DataLoader yields 'features_neg' per batch.")

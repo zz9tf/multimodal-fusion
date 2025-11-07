@@ -7,19 +7,21 @@ export CUDA_VISIBLE_DEVICES=0,1  # 使用GPU 0和1
 export PYTHONPATH="/home/zheng/zheng/multimodal-fusion/downstream_survival:$PYTHONPATH"
 
 # 激活conda环境
-source ~/miniconda3/etc/profile.d/conda.sh
+source ~/zheng/miniconda3/etc/profile.d/conda.sh
 conda activate multimodal-fusion
 
 # 基本配置
-DATA_ROOT_DIR="/home/zheng/zheng/mini2/hancock_data/WSI_UNI_encodings/WSI_PrimaryTumor"
+DATA_ROOT_DIR="/home/zheng/zheng/public/1"  # 单个数据集目录（作为默认值）
+DATA_ROOT_BASE="/home/zheng/zheng/public"  # 数据集目录的基础路径（多个副本）
+NUM_DATA_COPIES=10  # 数据集副本数量（1, 2, 3, 4, 5）
 CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv"
 RESULTS_DIR="./optuna_results"
-N_TRIALS=100
+N_TRIALS=5
 N_FOLDS=10
-N_JOBS=10
+N_JOBS=3
 
 # 目标通道
-TARGET_CHANNELS="features tma_CD3 tma_CD8 tma_CD56 tma_CD68 tma_CD163 tma_HE tma_MHC1 tma_PDL1"
+TARGET_CHANNELS="wsi tma clinical pathological blood icd tma_cell_density"
 
 # 创建结果目录
 mkdir -p $RESULTS_DIR
@@ -31,7 +33,10 @@ echo "🎯 目标通道: $TARGET_CHANNELS"
 
 # 运行优化（启用实时可视化）
 python optuna_auc_clam_optimization.py \
+    --model_type "svd_gate_random_clam_detach" \
     --data_root_dir "$DATA_ROOT_DIR" \
+    --data_root_base "$DATA_ROOT_BASE" \
+    --num_data_copies $NUM_DATA_COPIES \
     --csv_path "$CSV_PATH" \
     --results_dir "$RESULTS_DIR" \
     --n_trials $N_TRIALS \

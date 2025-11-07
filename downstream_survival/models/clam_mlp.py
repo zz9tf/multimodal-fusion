@@ -125,7 +125,7 @@ class ClamMLP(BaseModel):
             raise ValueError(f"CLAM_SB配置缺少必需参数: {missing_params}")
         
         # 验证模型大小
-        valid_sizes = ["small", "big", "128*64", "64*32", "32*32", "16*8", "8*4", "4*2", "2*1"]
+        valid_sizes = ["small", "big", "128*64", "64*32", "32*16", "16*8", "8*4", "4*2", "2*1"]
         if config['model_size'] not in valid_sizes:
             raise ValueError(f"不支持的模型大小: {config['model_size']}，支持的大小: {valid_sizes}")
         
@@ -190,12 +190,17 @@ class ClamMLP(BaseModel):
         device = h.device
         if len(A.shape) == 1:
             A = A.view(1, -1)
-        top_p_ids = torch.topk(A, self.inst_number)[1][-1]
+        # 确保 k 不超过 A 的长度
+        k = min(self.inst_number, A.shape[-1])
+        if k == 0:
+            # 如果没有实例，返回零损失和空预测
+            return torch.tensor(0.0, device=device), torch.empty(0, dtype=torch.long, device=device), torch.empty(0, dtype=torch.long, device=device)
+        top_p_ids = torch.topk(A, k)[1][-1]
         top_p = torch.index_select(h, dim=0, index=top_p_ids)
-        top_n_ids = torch.topk(-A, self.inst_number, dim=1)[1][-1]
+        top_n_ids = torch.topk(-A, k, dim=1)[1][-1]
         top_n = torch.index_select(h, dim=0, index=top_n_ids)
-        p_targets = self.create_positive_targets(self.inst_number, device)
-        n_targets = self.create_negative_targets(self.inst_number, device)
+        p_targets = self.create_positive_targets(k, device)
+        n_targets = self.create_negative_targets(k, device)
         
         all_targets = torch.cat([p_targets, n_targets], dim=0)
         all_instances = torch.cat([top_p, top_n], dim=0)
@@ -209,9 +214,14 @@ class ClamMLP(BaseModel):
         device = h.device
         if len(A.shape) == 1:
             A = A.view(1, -1)
-        top_p_ids = torch.topk(A, self.inst_number)[1][-1]
+        # 确保 k 不超过 A 的长度
+        k = min(self.inst_number, A.shape[-1])
+        if k == 0:
+            # 如果没有实例，返回零损失和空预测
+            return torch.tensor(0.0, device=device), torch.empty(0, dtype=torch.long, device=device), torch.empty(0, dtype=torch.long, device=device)
+        top_p_ids = torch.topk(A, k)[1][-1]
         top_p = torch.index_select(h, dim=0, index=top_p_ids)
-        p_targets = self.create_negative_targets(self.inst_number, device)
+        p_targets = self.create_negative_targets(k, device)
         logits = classifier(top_p)
         p_preds = torch.topk(logits, 1, dim=1)[1].squeeze(1)
         instance_loss = self.instance_loss_fn(logits, p_targets)
@@ -219,10 +229,11 @@ class ClamMLP(BaseModel):
     
     def _process_input_data(self, input_data: Dict[str, torch.Tensor]) -> torch.Tensor:
         tma_features = []
+        new_input_data = {}
         modalities_used_in_model = set()
         for channel in self.channels_used_in_model:
             if channel.startswith('wsi='): # 处理WSI通道
-                input_data[channel] = input_data[channel].squeeze(0).to(self.device)
+                new_input_data[channel] = input_data[channel].squeeze(0).to(self.device)
                 modalities_used_in_model.add('wsi=features')
             if channel.startswith('tma='): # 处理TMA通道
                 tma_features.append(input_data[channel].squeeze(0).to(self.device))
@@ -231,15 +242,15 @@ class ClamMLP(BaseModel):
                 continue
             else:
                 channel_name = channel.split('=')[0]
-                input_data[channel] = input_data[channel].squeeze(0).to(self.device)
+                new_input_data[channel] = input_data[channel].squeeze(0).to(self.device)
                 if f'{channel_name}=mask' in input_data:
-                    input_data[channel] = input_data[channel] * input_data[f'{channel_name}=mask'].squeeze(0).to(self.device)
+                    new_input_data[channel] = new_input_data[channel] * input_data[f'{channel_name}=mask'].squeeze(0).to(self.device)
                 modalities_used_in_model.add(channel)
-        
+        modalities_used_in_model = sorted(list(modalities_used_in_model))   
         if len(tma_features) > 0:
-            input_data['tma=features'] = torch.cat(tma_features, dim=0).to(self.device)
+            new_input_data['tma=features'] = torch.cat(tma_features, dim=0).to(self.device)
         
-        return input_data, modalities_used_in_model
+        return new_input_data, modalities_used_in_model
     
     def _clam_forward(self, channel: str, h: torch.Tensor, label: torch.Tensor) -> torch.Tensor:
         """

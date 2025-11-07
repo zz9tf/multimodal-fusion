@@ -10,7 +10,7 @@ source ~/zheng/miniconda3/etc/profile.d/conda.sh
 conda activate multimodal-fusion
 cd /home/zheng/zheng/multimodal-fusion/downstream_survival
 
-CUDA_DEVICE=0
+CUDA_DEVICE=1
 export CUDA_VISIBLE_DEVICES="$CUDA_DEVICE"
 
 # 数据相关参数
@@ -23,8 +23,7 @@ TARGET_CHANNELS="wsi tma clinical pathological blood icd tma_cell_density"
 EXP_CODE="clip_random_clam"
 SEED=5678
 K_FOLDS=10
-SPLIT_MODE="fixed"
-DATASET_SPLIT_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/dataset_split_in.json"
+SPLIT_MODE="random"
 MAX_EPOCHS=200
 LEARNING_RATE=1e-4
 LR_SCHEDULER="plateau"
@@ -76,7 +75,6 @@ python main.py \
     --reg $WEIGHT_DECAY \
     --opt $OPTIMIZER \
     $EARLY_STOPPING \
-    --dataset_split_path $DATASET_SPLIT_PATH \
     --batch_size $BATCH_SIZE \
     --model_type $MODEL_TYPE \
     --input_dim $INPUT_DIM \

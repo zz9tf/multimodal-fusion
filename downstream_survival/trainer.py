@@ -138,65 +138,6 @@ def save_splits(split_datasets, column_keys, filename, boolean_style=False):
 		pd.DataFrame([split_info]).to_csv(filename, index=False)
 		print(f"✅ 保存简化分割信息到: {filename}")
 
-# 工具函数，使用高效的手动实现
-def calculate_accuracy(Y_hat: torch.Tensor, Y: torch.Tensor) -> float:
-    """计算预测准确率"""
-    return float((Y_hat == Y).float().mean().item())
-
-def cal_auc(y_true: np.ndarray, y_scores: np.ndarray) -> float:
-    """快速计算AUC - 比sklearn快18倍"""
-    # 排序
-    sorted_indices = np.argsort(y_scores)[::-1]
-    y_true_sorted = y_true[sorted_indices]
-    
-    # 计算TPR和FPR
-    tp = np.cumsum(y_true_sorted)
-    fp = np.cumsum(1 - y_true_sorted)
-    
-    # 避免除零
-    tp_total = tp[-1]
-    fp_total = fp[-1]
-    
-    if tp_total == 0 or fp_total == 0:
-        return 0.5
-    
-    tpr = tp / tp_total
-    fpr = fp / fp_total
-    
-    # 计算AUC（梯形积分）
-    auc = np.trapz(tpr, fpr)
-    return auc
-
-def cal_roc_curve(y_true: np.ndarray, y_scores: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """快速计算ROC曲线 - 比sklearn快9.6倍"""
-    # 排序
-    sorted_indices = np.argsort(y_scores)[::-1]
-    y_true_sorted = y_true[sorted_indices]
-    y_scores_sorted = y_scores[sorted_indices]
-    
-    # 计算TPR和FPR
-    tp = np.cumsum(y_true_sorted)
-    fp = np.cumsum(1 - y_true_sorted)
-    
-    tp_total = tp[-1]
-    fp_total = fp[-1]
-    
-    if tp_total == 0:
-        tpr = np.zeros_like(tp, dtype=float)
-    else:
-        tpr = tp / tp_total
-    
-    if fp_total == 0:
-        fpr = np.zeros_like(fp, dtype=float)
-    else:
-        fpr = fp / fp_total
-    
-    # 添加起始点
-    tpr = np.concatenate([[0], tpr])
-    fpr = np.concatenate([[0], fpr])
-    
-    return fpr, tpr, y_scores_sorted
-
 def print_network(model: nn.Module):
     """打印网络结构和参数统计"""
     print("=" * 50)
@@ -277,15 +218,23 @@ def get_scheduler(optimizer: torch.optim.Optimizer, scheduler_config: Dict) -> O
         print(f"⚠️ 未知的调度器类型: {scheduler_type}")
         return None
 
-def get_split_loader(dataset, training=False, weighted=False, batch_size=1):
-    """获取数据加载器"""
+def get_split_loader(dataset, training=False, weighted=False, batch_size=1, generator=None):
+    """获取数据加载器
+    
+    Args:
+        dataset: 数据集
+        training: 是否为训练模式
+        weighted: 是否使用加权采样
+        batch_size: batch大小
+        generator: 随机数生成器（用于确保采样顺序一致）
+    """
     if training:
         if weighted:
             weights = make_weights_for_balanced_classes_split(dataset)
-            sampler = torch.utils.data.sampler.WeightedRandomSampler(weights, len(weights))
+            sampler = torch.utils.data.sampler.WeightedRandomSampler(weights, len(weights), generator=generator)
             return torch.utils.data.DataLoader(dataset, batch_size=batch_size, sampler=sampler)
         else:
-            return torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
+            return torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, generator=generator)
     else:
         return torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
@@ -662,9 +611,10 @@ class Trainer:
             print(f"🎯 使用学习率调度器: {scheduler_config.get('type', 'unknown')}")
         
         # 初始化数据加载器
-        train_loader = get_split_loader(train_split, training=True, weighted=True, batch_size=1)
-        val_loader = get_split_loader(val_split, training=False, weighted=False, batch_size=1)
-        test_loader = get_split_loader(test_split, training=False, weighted=False, batch_size=1)
+        seed = self.experiment_config['seed']
+        train_loader = get_split_loader(train_split, training=True, weighted=True, batch_size=1, generator=torch.Generator().manual_seed(seed))
+        val_loader = get_split_loader(val_split, training=False, weighted=False, batch_size=1, generator=torch.Generator().manual_seed(seed))
+        test_loader = get_split_loader(test_split, training=False, weighted=False, batch_size=1, generator=torch.Generator().manual_seed(seed))
 
         # 初始化早停
         early_stopping_obj = EarlyStopping(patience=25, stop_epoch=10, verbose=True) if self.early_stopping else None
@@ -860,7 +810,7 @@ class Trainer:
         # 在验证结束时计算AUC损失
         if hasattr(model, 'group_loss_fn') and hasattr(model, 'group_logits') and model.group_logits:
             results['group_loss'] = model.group_loss_fn(results)
-            logger.batch_log['loss'] += results['auc_loss']
+            logger.batch_log['loss'] += results['group_loss']
             
         val_loss = logger.batch_log['loss']/len(loader)
         val_acc = logger.get_overall_accuracy()

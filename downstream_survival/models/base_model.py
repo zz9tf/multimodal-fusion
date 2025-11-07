@@ -123,7 +123,8 @@ class BaseModel(nn.Module, ABC):
         }
         
         # 添加所有其他输出
-        for key, value in kwargs.items():
+        # 🔒 确保字典键顺序确定性：使用 sorted() 对键进行排序
+        for key, value in sorted(kwargs.items()):
             if value is not None:
                 result[key] = value
         

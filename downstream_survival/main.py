@@ -374,30 +374,6 @@ def create_k_fold_splits(dataset, k=10, seed=42, fixed_test_split=None):
                 'val': actual_val_idx,
                 'test': test_indices  # 测试集始终相同
             })
-    # else:
-    #     # 原始的分割方式：将测试集进一步分为验证集和测试集
-    #     print(f"🔄 使用传统k-fold分割")
-        
-    #     # 创建分层k-fold分割
-    #     skf = StratifiedKFold(n_splits=k, shuffle=True, random_state=seed)
-        
-    #     for fold_idx, (train_idx, test_idx) in enumerate(skf.split(range(len(dataset)), labels)):
-    #         # 在训练集上进一步划分出验证集，使总体比例为：train=(k-2)/k, val=1/k, test=1/k
-    #         # 对于k=10，即 train=80%, val=10%, test=10%
-    #         train_labels = labels[train_idx]
-    #         val_ratio_within_train = 1.0 / (k - 1)
-    #         sss = StratifiedShuffleSplit(n_splits=1, test_size=val_ratio_within_train, random_state=seed)
-    #         rel_train_idx, rel_val_idx = next(sss.split(train_idx, train_labels))
-
-    #         # 转换为实际索引
-    #         actual_train_idx = train_idx[rel_train_idx]
-    #         actual_val_idx = train_idx[rel_val_idx]
-
-    #         splits.append({
-    #             'train': actual_train_idx,
-    #             'val': actual_val_idx,
-    #             'test': test_idx
-    #         })
     else:
         # 原始的分割方式：将测试集进一步分为验证集和测试集
         print(f"🔄 使用传统k-fold分割")
@@ -406,13 +382,15 @@ def create_k_fold_splits(dataset, k=10, seed=42, fixed_test_split=None):
         splits = []
         for fold_idx, (train_idx, test_idx) in enumerate(skf.split(range(len(dataset)), labels)):
             # 将测试集进一步分为验证集和测试集
-            test_labels = labels[test_idx]
+            # 🔧 确保 test_idx 排序一致，避免每次 split 结果不同
+            test_idx_sorted = np.sort(test_idx)
+            test_labels = labels[test_idx_sorted]
             val_test_skf = StratifiedKFold(n_splits=2, shuffle=True, random_state=seed)
-            val_idx, test_idx_final = next(val_test_skf.split(test_idx, test_labels))
+            val_idx, test_idx_final = next(val_test_skf.split(test_idx_sorted, test_labels))
             
             # 转换为实际索引
-            val_idx = test_idx[val_idx]
-            test_idx_final = test_idx[test_idx_final]
+            val_idx = test_idx_sorted[val_idx]
+            test_idx_final = test_idx_sorted[test_idx_final]
             
             splits.append({
                 'train': train_idx,
@@ -645,9 +623,12 @@ def main(args, configs):
     splits = create_k_fold_splits(dataset, k=args.k, seed=args.seed, fixed_test_split=fixed_test_split)
     print(f'✅ Created {len(splits)} folds')
 
-    # 确定fold范围
-    start = 0
-    end = args.k
+    # 确定fold范围（支持从 start_k_fold 开始）
+    start = int(args.start_k_fold) if hasattr(args, 'start_k_fold') and args.start_k_fold is not None else 0
+    end = int(args.k)
+    if start < 0 or start >= end:
+        raise ValueError(f"❌ start_k_fold 越界: start={start}, k={end}. 允许范围: 0 <= start < k")
+    print(f"\n➡️ 将从 fold {start} 开始运行，直到 fold {end-1}")
 
     # 初始化训练器
     trainer = Trainer(
@@ -667,8 +648,6 @@ def main(args, configs):
         print(f'\n{"="*60}')
         print(f'Training Fold {i+1}/{args.k}')
         print(f'{"="*60}')
-        
-        seed_torch(args.seed)
         
         # 获取当前fold的分割
         split = splits[i]
@@ -784,6 +763,8 @@ if __name__ == "__main__":
                         help='实验代码，用于保存结果')
     parser.add_argument('--seed', type=int, default=1, 
                         help='随机种子 (default: 1)')
+    parser.add_argument('--start_k_fold', type=int, default=0, 
+                        help='开始fold数量 (default: 0)')
     parser.add_argument('--k', type=int, default=10, 
                         help='fold数量 (default: 10)')
     parser.add_argument('--split_mode', type=str, choices=['random', 'fixed'], default='random',

@@ -20,8 +20,7 @@ TARGET_CHANNELS="wsi"
 EXP_CODE="wsi_clam_mlp_detach"
 SEED=5678
 K_FOLDS=10
-SPLIT_MODE="fixed"
-DATASET_SPLIT_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/dataset_split_in.json"
+SPLIT_MODE="random"
 MAX_EPOCHS=200
 LEARNING_RATE=1e-4
 LR_SCHEDULER="plateau"
@@ -78,5 +77,4 @@ python main.py \
     --subtyping $SUBTYPING \
     --inst_number $INST_NUMBER \
     --channels_used_in_model $CHANNELS_USED_IN_MODEL \
-    --output_dim $OUTPUT_DIM \
-    --dataset_split_path $DATASET_SPLIT_PATH \
+    --output_dim $OUTPUT_DIM
