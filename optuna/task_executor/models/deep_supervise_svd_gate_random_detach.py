@@ -1,13 +1,11 @@
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-from .svd_gate_random_clam import SVDGateRandomClam
+from .deep_supervise_svd_gate_random import DeepSuperviseSVDGateRandomClam
 import random
-from typing import Dict, List, Tuple, Optional
 
-class SVDGateRandomClamDetach(SVDGateRandomClam):
+class DeepSuperviseSVDGateRandomClamDetach(DeepSuperviseSVDGateRandomClam):
     """
-    CLAM MLP Detach 模型
+    CLAM MLP 模型
     
     配置参数：
     - n_classes: 类别数量
@@ -23,7 +21,7 @@ class SVDGateRandomClamDetach(SVDGateRandomClam):
     def __init__(self, config):
         super().__init__(config)
 
-    def forward(self, input_data, label, drop_prob=None):
+    def forward(self, input_data, label):
         """
         统一的前向传播接口
         
@@ -38,9 +36,7 @@ class SVDGateRandomClamDetach(SVDGateRandomClam):
         """
         input_data, modalities_used_in_model = self._process_input_data(input_data)
         # 初始化结果字典
-        result_kwargs = {
-            "raw_features_dict": {k: v.detach().clone() for k, v in input_data.items()}
-        }
+        result_kwargs = {}
         
         # 初始化融合特征
         features_dict = {}
@@ -59,72 +55,52 @@ class SVDGateRandomClamDetach(SVDGateRandomClam):
                 if channel not in self.transfer_layer:
                     self.transfer_layer[channel] = self.create_transfer_layer(input_data[channel].shape[1])
                 features_dict[channel] = self.transfer_layer[channel](input_data[channel])
-        
-        # 📊 保存CLAM后的结果（每个modality的值）
-        result_kwargs['original_features_dict'] = {k: v.detach().clone() for k, v in features_dict.items()}
+                deep_supervise_result_kwargs = self.deep_supervise_forward(channel, features_dict[channel], label)
+                for key, value in deep_supervise_result_kwargs.items():
+                    result_kwargs[f'{channel}_{key}'] = value
+                features_dict[channel] = features_dict[channel].detach()
         
         if self.enable_svd:
             if not hasattr(self, 'alignment_features'):
                 self.alignment_features = []
-            features_dict = self.align_forward(features_dict)
-            # 📊 保存SVD后的结果（每个modality的值）
-            result_kwargs['aligned_svd_features_dict'] = {k: v.detach().clone() for k, v in features_dict.items()}
             if self.return_svd_features:
+                original_features_dict = features_dict.copy()
+                features_dict = self.align_forward(features_dict)
                 return {
-                    'features': result_kwargs['original_features_dict'],
+                    'features': original_features_dict,
                     'aligned_features': features_dict,
                 }
+            else:
+                features_dict = self.align_forward(features_dict)
             self.alignment_features.append(features_dict)
             if self.enable_dynamic_gate:
                 result = self.gated_forward(features_dict, label)
-                # 📊 保存Dynamic Gate后的结果（每个modality的值）
-                result_kwargs['svd_gated_features_dict'] = {k: v.detach().clone() for k, v in result['gated_features'].items()}
                 for key, value in result.items():
                     result_kwargs[f'gated_{key}'] = value
                 features_dict = result['gated_features']
         else:
             if self.enable_dynamic_gate:
                 result = self.gated_forward(features_dict, label)
-                # 📊 保存Dynamic Gate后的结果（每个modality的值）
-                result_kwargs['svd_gated_features_dict'] = {k: v.detach().clone() for k, v in result['gated_features'].items()}
                 for key, value in result.items():
                     result_kwargs[f'gated_{key}'] = value
                 features_dict = result['gated_features']
                 
         if self.enable_random_loss and self.training:
-            sorted_features_dict_keys = sorted(features_dict.keys())
-            drop_modality = random.sample(sorted_features_dict_keys, random.randint(1, len(features_dict)-1))
-            # 📊 保存random操作的信息
-            result_kwargs['random_sorted_keys'] = sorted_features_dict_keys
-            result_kwargs['random_drop_modality'] = drop_modality
-            result_kwargs['random_n'] = len(drop_modality)
-            
+            sorted_keys = sorted(features_dict.keys())
+            drop_modality = random.sample(sorted_keys, random.randint(1, len(features_dict)-1))
             h_partial = []
-            for modality in sorted_features_dict_keys:
+            for modality in sorted_keys:
                 if modality not in drop_modality:
                     h_partial.append(features_dict[modality])
                 else:
                     h_partial.append(torch.zeros_like(features_dict[modality]).to(self.device))
             h_partial = torch.cat(h_partial, dim=1).to(self.device)
-            # 📊 保存random后的h
-            result_kwargs['h_random'] = h_partial.detach().clone()
             logits = self.fusion_prediction(h_partial.detach())
             result_kwargs['random_partial_loss'] = self.base_loss_fn(logits, label)
             
-        if self.training is False and drop_prob is not None:
-            h = []
-            for modality in sorted(features_dict.keys()):
-                random_drop = torch.rand(1) < drop_prob
-                if random_drop:
-                    h.append(torch.zeros_like(features_dict[modality]).to(self.device))
-                else:
-                    h.append(features_dict[modality])
-            h = torch.cat(h, dim=1).to(self.device)
-        else:
-            h = torch.cat([features_dict[mod] for mod in sorted(features_dict.keys())], dim=1).to(self.device)
-        # 📊 保存最终h
-        result_kwargs['h'] = h.detach().clone()
-        
+        sorted_keys = sorted(features_dict.keys())
+        h = torch.cat([features_dict[mod] for mod in sorted_keys], dim=1).to(self.device)
+
         logits = self.fusion_prediction(h.detach())
         Y_prob = F.softmax(logits, dim = 1)
         Y_hat = torch.topk(logits, 1, dim = 1)[1]

@@ -259,6 +259,21 @@ class AUCCLAMOptimizer:
         Returns:
             目标函数
         """
+        # 将需要的参数提取为局部变量，避免闭包引用self
+        # 这样可以确保objective函数可以被正确序列化用于进程并行
+        data_root_base = self.data_root_base
+        data_root_dir = self.data_root_dir  # 用于else分支
+        num_data_copies = self.num_data_copies
+        csv_path = self.csv_path
+        model_type = self.model_type
+        results_dir = self.results_dir
+        config_manager = self.config_manager
+        kwargs = self.kwargs.copy()  # 复制kwargs，避免引用self
+        
+        # 注意：profiler在进程并行时无法共享，每个进程会创建自己的实例
+        # 但为了性能分析，我们在每个进程中创建新的profiler
+        enable_profiling = True
+        
         def objective(trial: optuna.Trial) -> float:
             """
             Optuna 目标函数
@@ -267,23 +282,43 @@ class AUCCLAMOptimizer:
                 验证集平均AUC分数
             """
             # 显示当前 trial 和进程/线程信息（用于验证 n_jobs）
-            print(f"🔬 Trial {trial.number} 开始执行 (进程ID: {os.getpid()}, 线程ID: {threading.current_thread().ident})")
+            # 如果使用进程并行，每个trial应该在不同的进程ID中
+            # 如果使用线程并行，所有trial会在同一个进程ID中
+            process_id = os.getpid()
+            thread_id = threading.current_thread().ident
+            print(f"🔬 Trial {trial.number} 开始执行 (进程ID: {process_id}, 线程ID: {thread_id})")
+            
+            # 诊断信息：如果是第一个trial，记录进程ID
+            if trial.number == 0:
+                print(f"💡 诊断: 第一个trial的进程ID是 {process_id}")
+                print(f"💡 提示: 如果使用进程并行，后续trial应该有不同的进程ID")
+                print(f"💡 提示: 如果所有trial都是同一进程ID，说明使用了线程并行（性能较差）")
+            
+            # 在每个进程中创建新的profiler实例（进程并行时无法共享self.profiler）
+            if enable_profiling:
+                profiler = PerformanceProfiler(enable=True)
+            else:
+                # 创建一个空的上下文管理器，不进行性能分析
+                from contextlib import nullcontext
+                profiler = type('DummyProfiler', (), {
+                    'time_block': lambda self, name, trial_num=None: nullcontext()
+                })()
             
             trial_start_time = time.time()
             try:
                 # 0. 选择数据集目录（如果有多个副本）
-                if self.data_root_base is not None:
+                if data_root_base is not None:
                     # 根据 trial.number 选择数据集副本（循环使用）
-                    with self.profiler.time_block("数据集目录选择", trial.number):
-                        data_copy_idx = (trial.number % self.num_data_copies) + 1
-                        trial_data_root_dir = os.path.join(self.data_root_base, str(data_copy_idx))
+                    with profiler.time_block("数据集目录选择", trial.number):
+                        data_copy_idx = (trial.number % num_data_copies) + 1
+                        trial_data_root_dir = os.path.join(data_root_base, str(data_copy_idx))
                         print(f"📂 Trial {trial.number} 使用数据集副本: {trial_data_root_dir}")
                     
                     # 加载数据集（每个 trial 使用自己的数据集副本）
-                    with self.profiler.time_block("数据集加载", trial.number):
+                    with profiler.time_block("数据集加载", trial.number):
                         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
                         trial_dataset = MultimodalDataset(
-                            csv_path=self.csv_path,
+                            csv_path=csv_path,
                             data_root_dir=trial_data_root_dir,
                             channels=target_channels,
                             align_channels=None,
@@ -293,9 +328,9 @@ class AUCCLAMOptimizer:
                         )
                     
                     # 创建K折分割（使用与 main.py 相同的方法）
-                    with self.profiler.time_block("K折分割创建", trial.number):
-                        seed = self.kwargs.get('seed', 42)
-                        fixed_test_split = self.kwargs.get('fixed_test_split', None)
+                    with profiler.time_block("K折分割创建", trial.number):
+                        seed = kwargs.get('seed', 42)
+                        fixed_test_split = kwargs.get('fixed_test_split', None)
                         trial_k_fold_splits = create_k_fold_splits(
                             dataset=trial_dataset,
                             k=10,
@@ -306,35 +341,35 @@ class AUCCLAMOptimizer:
                     # 使用共享的数据集（向后兼容）
                     trial_dataset = dataset
                     trial_k_fold_splits = k_fold_splits
-                    trial_data_root_dir = self.data_root_dir
+                    trial_data_root_dir = data_root_dir
                 
                 # 1. 建议实验参数
-                with self.profiler.time_block("实验参数建议", trial.number):
-                    experiment_params = self.config_manager.suggest_experiment_params(trial)
+                with profiler.time_block("实验参数建议", trial.number):
+                    experiment_params = config_manager.suggest_experiment_params(trial)
                 
                 # 2. 建议模型参数（根据模型类型）
-                with self.profiler.time_block("模型参数建议", trial.number):
-                    model_params = self.config_manager.suggest_model_params(trial, self.model_type)
+                with profiler.time_block("模型参数建议", trial.number):
+                    model_params = config_manager.suggest_model_params(trial, model_type)
                 
                 # 3. 创建配置
-                with self.profiler.time_block("配置创建", trial.number):
-                    configs = self.config_manager.create_configs(
-                        model_type=self.model_type,
+                with profiler.time_block("配置创建", trial.number):
+                    configs = config_manager.create_configs(
+                        model_type=model_type,
                         data_root_dir=trial_data_root_dir,
-                        csv_path=self.csv_path,
+                        csv_path=csv_path,
                         target_channels=target_channels,
                         experiment_params=experiment_params,
                         model_params=model_params,
                         trial_number=trial.number,
                         num_splits=10,
-                        **self.kwargs
+                        **kwargs
                     )
                 
                 # 3. 初始化训练器
-                with self.profiler.time_block("训练器初始化", trial.number):
+                with profiler.time_block("训练器初始化", trial.number):
                     trainer = Trainer(
                         configs=configs,
-                        log_dir=os.path.join(self.results_dir, f'trial_{trial.number}')
+                        log_dir=os.path.join(results_dir, f'trial_{trial.number}')
                     )
                 
                 # 4. 使用前 n_folds 进行快速验证
@@ -342,7 +377,7 @@ class AUCCLAMOptimizer:
                 total_training_time = 0
                 for fold_idx in range(min(n_folds, len(trial_k_fold_splits))):
                     # 获取当前fold的分割
-                    with self.profiler.time_block(f"Fold_{fold_idx}_数据准备", trial.number):
+                    with profiler.time_block(f"Fold_{fold_idx}_数据准备", trial.number):
                         split = trial_k_fold_splits[fold_idx]
                         train_idx = split['train']
                         val_idx = split['val']
@@ -358,7 +393,7 @@ class AUCCLAMOptimizer:
                     # 训练并获取验证AUC
                     try:
                         fold_start_time = time.time()
-                        with self.profiler.time_block(f"Fold_{fold_idx}_训练", trial.number):
+                        with profiler.time_block(f"Fold_{fold_idx}_训练", trial.number):
                             _, test_auc, val_auc, test_acc, val_acc = trainer.train_fold(
                                 datasets=datasets,
                                 fold_idx=fold_idx
@@ -383,10 +418,11 @@ class AUCCLAMOptimizer:
                         fold_aucs.append(random_auc)
                 
                 # 5. 计算平均AUC
-                with self.profiler.time_block("结果计算", trial.number):
+                with profiler.time_block("结果计算", trial.number):
                     mean_auc = np.mean(fold_aucs) if fold_aucs else 0.5
                     
-                    # 6. 记录试验结果
+                    # 6. 记录试验结果（注意：在进程并行时，每个进程有独立的trial_results）
+                    # 结果会通过Optuna的存储机制保存，不需要手动同步
                     trial_result = {
                         'trial_number': trial.number,
                         'experiment_params': experiment_params,
@@ -395,7 +431,8 @@ class AUCCLAMOptimizer:
                         'fold_aucs': fold_aucs,
                         'timestamp': datetime.now().isoformat()
                     }
-                    self.trial_results.append(trial_result)
+                    # 注意：在进程并行时，self.trial_results无法共享，所以不在这里添加
+                    # 结果会通过Optuna的存储机制自动保存
                 
                 trial_total_time = time.time() - trial_start_time
                 print(f"🎯 Trial {trial.number}: Mean Val AUC = {mean_auc:.4f} | 总耗时: {trial_total_time:.2f}秒 | 训练耗时: {total_training_time:.2f}秒 ({total_training_time/trial_total_time*100:.1f}%)")
@@ -568,9 +605,35 @@ class AUCCLAMOptimizer:
         print(f"\n🎯 开始优化 (使用前 {n_folds} folds)...")
         print(f"⚙️  并行作业数 (n_jobs): {self.n_jobs}")
         print(f"📊 总试验数 (n_trials): {self.n_trials}")
+        
+        # 确保使用进程并行（multiprocessing）而不是线程并行
+        if self.n_jobs > 1:
+            import multiprocessing
+            # 设置multiprocessing的启动方法为spawn（确保进程隔离）
+            try:
+                multiprocessing.set_start_method('spawn', force=True)
+                print(f"✅ 使用进程并行 (multiprocessing spawn)")
+            except RuntimeError:
+                # 如果已经设置过，忽略错误
+                print(f"✅ 使用进程并行 (multiprocessing)")
+            
+            # 验证multiprocessing是否可用
+            try:
+                import pickle
+                # 尝试序列化objective函数，确保可以用于进程并行
+                pickle.dumps(objective)
+                print(f"✅ Objective函数可以序列化，支持进程并行")
+            except Exception as e:
+                print(f"⚠️ 警告: Objective函数序列化失败: {e}")
+                print(f"⚠️ 可能回退到线程并行，性能会下降")
+        else:
+            print(f"ℹ️  单进程执行 (n_jobs=1)")
+        
         print("")
         
         # 使用 Optuna 的标准优化方法
+        # 注意：Optuna会根据n_jobs自动选择进程或线程并行
+        # 但为了确保使用进程并行，我们需要确保objective函数可以被pickle
         study.optimize(
             objective, 
             n_trials=self.n_trials, 

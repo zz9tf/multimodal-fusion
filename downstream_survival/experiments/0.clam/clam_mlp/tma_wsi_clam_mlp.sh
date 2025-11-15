@@ -77,5 +77,4 @@ python main.py \
     --subtyping $SUBTYPING \
     --inst_number $INST_NUMBER \
     --channels_used_in_model $CHANNELS_USED_IN_MODEL \
-    --output_dim $OUTPUT_DIM \
-    --dataset_split_path $DATASET_SPLIT_PATH \
+    --output_dim $OUTPUT_DIM

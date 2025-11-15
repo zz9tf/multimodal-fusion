@@ -1,0 +1,69 @@
+# Optuna 超参数优化配置模板（使用字符串解析格式）
+# 
+# 配置格式说明：
+# 1. 固定值（不带 * 前缀）：直接写值，如 42, 3.14, "adam", true, false, null
+# 2. 搜索空间（带 * 前缀）：
+#    - *int:1-10          # 整数范围
+#    - *float:1.1-20.0    # 浮点数范围
+#    - *log:1e-5-1e-3     # 对数范围
+#    - *a,b,c             # 分类选择
+#    - *bool              # 布尔值选择
+
+description: "Optuna 超参数优化配置模板"
+
+experiment_config:
+  # 固定值
+  data_root_dir: "/path/to/data"
+  csv_path: "/path/to/labels.csv"
+  alignment_model_path: null
+  aligned_channels: null
+  opt: "adam"
+  scheduler_config:
+    type: "plateau"
+    mode: "min"
+    patience: 15
+    factor: 0.5
+  target_channels:
+    - "wsi"
+    - "tma"
+    - "clinical"
+  exp_code: "my_experiment"
+  num_splits: 10
+  split_mode: "fixed"
+  dataset_split_path: "/path/to/split.json"
+  
+  # 搜索空间（带 * 前缀）
+  seed: "*int:1-10000"
+  max_epochs: "*int:100-300"
+  lr: "*log:1e-5-1e-3"
+  reg: "*log:1e-6-1e-4"
+  early_stopping: "*bool"
+  batch_size: "*32,64,128,256"
+  dropout: "*float:0.1-0.9"
+
+model_config:
+  # 固定值
+  input_dim: 1024
+  n_classes: 2
+  base_loss_fn: "ce"
+  model_type: "auc_clam"
+  
+  # 搜索空间（带 * 前缀）
+  model_size: "*64*32,32*16,16*8,8*4,4*2,2*1"
+  gate: "*bool"
+  base_weight: "*float:0.3-0.9"
+  inst_loss_fn: "*null,ce"
+  subtyping: "*bool"
+  inst_number: "*4,8"
+  return_features: "*bool"
+  auc_loss_weight: "*float:0.1-2.0"
+  output_dim: "*64,128,256"
+  enable_svd: "*bool"
+  alignment_layer_num: "*int:1-4"
+  lambda1: "*float:0.1-2.0"
+  lambda2: "*float:0.0-1.0"
+  tau1: "*float:0.01-0.5"
+  tau2: "*float:0.01-0.5"
+  enable_random_loss: "*bool"
+  weight_random_loss: "*float:0.01-1.0"
+
