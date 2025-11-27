@@ -85,10 +85,12 @@ def _get_model_specific_config(args):
         'confidence_weight': args.confidence_weight,
         'feature_weight_weight': args.feature_weight_weight,
     }
+    
     random_loss_config = {
         'enable_random_loss': args.enable_random_loss,
         'weight_random_loss': args.weight_random_loss,
     }
+    
     if model_type == 'mil':
         return {
             **mil_config,
@@ -180,6 +182,14 @@ def _get_model_specific_config(args):
         return {
             **mil_config,
             **dynamic_gate_config,
+        }
+    elif model_type == 'mdlm':
+        return {
+            **clam_config,
+        }
+    elif model_type == 'ps3':
+        return {
+            **clam_config,
         }
     else:
         # 为其他模型类型返回空配置，可以根据需要扩展
@@ -794,7 +804,8 @@ if __name__ == "__main__":
     parser.add_argument('--model_type', type=str, choices=[
         'mil', 'clam', 'auc_clam', 'clam_mlp', 'clam_mlp_detach', 'svd_gate_random_clam', 'svd_gate_random_clam_detach', 
         'gate_shared_mil', 'gate_mil_detach', 'gate_mil', 'gate_auc_mil', 'clip_gate_random_clam', 'clip_gate_random_clam_detach',
-        'deep_supervise_svd_gate_random', 'deep_supervise_svd_gate_random_detach'
+        'deep_supervise_svd_gate_random', 'deep_supervise_svd_gate_random_detach',
+        'mdlm', 'ps3'
         ], 
                         default='clam', help='模型类型 (default: clam)')
     parser.add_argument('--input_dim', type=int, default=1024,
@@ -821,7 +832,7 @@ if __name__ == "__main__":
     parser.add_argument('--inst_number', type=int, default=8, 
                         help='CLAM: 正负样本采样数量')
     parser.add_argument('--channels_used_in_model', type=str, nargs='+', 
-                        default=['features', 'CD3', 'CD8', 'CD56', 'CD68', 'CD163', 'HE', 'MHC1', 'PDL1'],
+                        default=['wsi', 'tma', 'clinical', 'pathological', 'blood', 'icd', 'tma_cell_density'],
                         help='模型中需要使用的通道')
     parser.add_argument('--return_features', action='store_true', default=False, 
                         help='MIL & CLAM: 返回特征')
@@ -871,6 +882,7 @@ if __name__ == "__main__":
                         help='Random Loss: 启用随机损失')
     parser.add_argument('--weight_random_loss', type=float, default=0.1, 
                         help='Random Loss: 随机损失权重')
+    
     # 解析参数
     args = parser.parse_args()
     args.target_channels = parse_channels(args.target_channels)

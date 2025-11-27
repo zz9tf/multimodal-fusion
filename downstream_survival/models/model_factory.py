@@ -19,6 +19,8 @@ from .clip_gate_random_clam import ClipGateRandomClam
 from .clip_gate_random_clam_detach import ClipGateRandomClamDetach
 from .deep_supervise_svd_gate_random import DeepSuperviseSVDGateRandomClam
 from .deep_supervise_svd_gate_random_detach import DeepSuperviseSVDGateRandomClamDetach
+from .mdlm import MDLM
+from .ps3 import PS3
 from .base_model import BaseModel
 from typing import Dict, Any, Type
 
@@ -46,7 +48,9 @@ class ModelFactory:
         'gate_auc_mil': GateAUCMIL,
         'gate_mil_detach': GateMILDetach,
         'deep_supervise_svd_gate_random': DeepSuperviseSVDGateRandomClam,
-        'deep_supervise_svd_gate_random_detach': DeepSuperviseSVDGateRandomClamDetach
+        'deep_supervise_svd_gate_random_detach': DeepSuperviseSVDGateRandomClamDetach,
+        'mdlm': MDLM,
+        'ps3': PS3
     }
     
     @staticmethod
