@@ -30,7 +30,7 @@ class PS3(ClamMLP):
         @param {Dict} config - 模型配置字典，包含模型所需的所有参数
         """
         super().__init__(config)
-        self.modality_order = sorted(self.modalities_used_in_model)
+        self.modality_order = sorted(self.used_modality)
         self.token_norm = nn.LayerNorm(self.output_dim).to(self.device)  # Token normalization
         self.qkv_proj = nn.Linear(self.output_dim, 3 * self.output_dim).to(self.device)
         self.modality_mlp_layers = nn.ModuleDict(

@@ -191,6 +191,14 @@ def _get_model_specific_config(args):
         return {
             **clam_config,
         }
+    elif model_type == 'fbp':
+        return {
+            **clam_config,
+        }
+    elif model_type == 'mfmf':
+        return {
+            **clam_config,
+        }
     else:
         # 为其他模型类型返回空配置，可以根据需要扩展
         return {}
@@ -805,7 +813,7 @@ if __name__ == "__main__":
         'mil', 'clam', 'auc_clam', 'clam_mlp', 'clam_mlp_detach', 'svd_gate_random_clam', 'svd_gate_random_clam_detach', 
         'gate_shared_mil', 'gate_mil_detach', 'gate_mil', 'gate_auc_mil', 'clip_gate_random_clam', 'clip_gate_random_clam_detach',
         'deep_supervise_svd_gate_random', 'deep_supervise_svd_gate_random_detach',
-        'mdlm', 'ps3'
+        'mdlm', 'ps3', 'fbp', 'mfmf'
         ], 
                         default='clam', help='模型类型 (default: clam)')
     parser.add_argument('--input_dim', type=int, default=1024,

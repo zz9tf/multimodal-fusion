@@ -21,6 +21,7 @@ from .deep_supervise_svd_gate_random import DeepSuperviseSVDGateRandomClam
 from .deep_supervise_svd_gate_random_detach import DeepSuperviseSVDGateRandomClamDetach
 from .mdlm import MDLM
 from .ps3 import PS3
+from .fbp import FBP
 from .base_model import BaseModel
 from typing import Dict, Any, Type
 
@@ -50,7 +51,9 @@ class ModelFactory:
         'deep_supervise_svd_gate_random': DeepSuperviseSVDGateRandomClam,
         'deep_supervise_svd_gate_random_detach': DeepSuperviseSVDGateRandomClamDetach,
         'mdlm': MDLM,
-        'ps3': PS3
+        'ps3': PS3,
+        'fbp': FBP,
+        # 'mfmf': MFMF
     }
     
     @staticmethod
