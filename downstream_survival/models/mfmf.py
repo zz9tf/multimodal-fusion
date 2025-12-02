@@ -35,19 +35,21 @@ class MFMF(ClamMLP):
         result_kwargs = {}
         
         logits = {}
-        modality_features = {}
+        wsi_features = []
+        tma_features = []
+        other_modality_features = []
         for channel in modalities_used_in_model:
             if channel in {"wsi=features", "tma=features"}:
-                clam_result_kwargs = self._clam_forward(
-                    channel, input_data[channel], label
-                )
-                modality_features[channel] = clam_result_kwargs["features"]
-                modality_features[channel] = self.prediction_head_dict[channel](modality_features[channel])
-                for key, value in clam_result_kwargs.items():
-                    result_kwargs[f"{channel}_{key}"] = value
+                if channel == "wsi=features":
+                    wsi_features.append(input_data[channel])
+                else:
+                    tma_features.append(input_data[channel])
             else:
-                modality_features[channel] = input_data[channel]
-    
+                if channel not in self.transfer_layer:
+                    self.transfer_layer[channel] = self.create_transfer_layer(input_data[channel].shape[1])
+                other_modality_features.append(self.transfer_layer[channel](input_data[channel]))
+        
+        
         h = torch.cat([modality_features[channel] for channel in self.modality_order], dim=1)
         if self.late_fusion_layer is None:
             self.late_fusion_layer = nn.Linear(
