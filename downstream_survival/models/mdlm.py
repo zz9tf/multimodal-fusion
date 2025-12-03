@@ -46,9 +46,7 @@ class MDLM(ClamMLP):
                 for key, value in clam_result_kwargs.items():
                     result_kwargs[f"{channel}_{key}"] = value
             else:
-                if channel not in self.transfer_layer:
-                    self.transfer_layer[channel] = self.create_transfer_layer(input_data[channel].shape[1])
-                modality_features[channel] = self.transfer_layer[channel](input_data[channel])
+                modality_features[channel] = input_data[channel]
     
         h = torch.cat([modality_features[channel] for channel in self.modality_order], dim=1)
         if self.late_fusion_layer is None:

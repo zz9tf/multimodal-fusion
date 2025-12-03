@@ -75,7 +75,6 @@ class FBP(ClamMLP):
         # 收集所有模态的特征
         modality_features = {}
         for channel in modalities_used_in_model:
-            features = None
             if channel == 'wsi=features':
                 clam_result_kwargs = self._clam_forward(channel, input_data[channel], label)
                 modality_features[channel] = clam_result_kwargs['features'].detach()

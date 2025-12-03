@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
-VAE模型定义
-包含Encoder、Decoder和VAE类
+VAE model definitions.
+Contains Encoder, Decoder and VAE classes.
 """
 import torch
 import torch.nn as nn
@@ -10,53 +10,56 @@ from typing import Tuple
 
 class Encoder(nn.Module):
     """
-    VAE编码器，将输入特征编码为潜在空间的均值和方差
+    VAE encoder that maps input features into latent mean and log-variance.
     
-    Args:
-        input_dim (int): 输入特征维度
-        hidden_dims (list): 隐藏层维度列表
-        latent_dim (int): 潜在空间维度
+        Args:
+            input_dim (int): input feature dimension
+            hidden_dims (list): list of hidden layer dimensions
+            latent_dim (int): latent dimension size
     """
     
     def __init__(self, input_dim: int, hidden_dims: list = None, latent_dim: int = 128):
         """
-        初始化编码器
-        
+        Initialize encoder.
+
         Args:
-            input_dim: 输入特征维度
-            hidden_dims: 隐藏层维度列表，默认为[512, 256]
-            latent_dim: 潜在空间维度，默认为128
+            input_dim: input feature dimension
+            hidden_dims: hidden layer dimensions, default [512, 256]
+            latent_dim: latent dimension, default 128
         """
         super(Encoder, self).__init__()
         
         if hidden_dims is None:
             hidden_dims = [512, 256]
         
-        # 构建编码器网络
+        # Build encoder network
         layers = []
         prev_dim = input_dim
-        for hidden_dim in hidden_dims:
+        for i, hidden_dim in enumerate(hidden_dims):
             layers.append(nn.Linear(prev_dim, hidden_dim))
-            layers.append(nn.ReLU())
-            layers.append(nn.Dropout(0.2))
+            # Use GELU activation (often better than ReLU here)
+            layers.append(nn.GELU())
+            # Use Dropout only on intermediate layers (speed up training)
+            if i < len(hidden_dims) - 1:
+                layers.append(nn.Dropout(0.1))  # 减少Dropout比例
             prev_dim = hidden_dim
         
         self.encoder = nn.Sequential(*layers)
         
-        # 输出层：分别输出均值和log方差
+        # Output layers: mean and log-variance
         self.fc_mean = nn.Linear(prev_dim, latent_dim)
         self.fc_log_var = nn.Linear(prev_dim, latent_dim)
     
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
-        前向传播
-        
+        Forward pass.
+
         Args:
-            x: 输入特征张量，形状为 (batch_size, input_dim)
-            
+            x: input features of shape (batch_size, input_dim)
+
         Returns:
-            mean: 潜在空间均值，形状为 (batch_size, latent_dim)
-            log_var: 潜在空间log方差，形状为 (batch_size, latent_dim)
+            mean: latent mean, shape (batch_size, latent_dim)
+            log_var: latent log-variance, shape (batch_size, latent_dim)
         """
         h = self.encoder(x)
         mean = self.fc_mean(h)
@@ -66,22 +69,22 @@ class Encoder(nn.Module):
 
 class Decoder(nn.Module):
     """
-    VAE解码器，将潜在向量解码为重构特征
+    VAE decoder that maps latent vectors back to reconstructed features.
     
-    Args:
-        latent_dim (int): 潜在空间维度
-        hidden_dims (list): 隐藏层维度列表
-        output_dim (int): 输出特征维度
+        Args:
+            latent_dim (int): latent space dimension
+            hidden_dims (list): list of hidden layer dimensions
+            output_dim (int): output feature dimension
     """
     
     def __init__(self, latent_dim: int, hidden_dims: list = None, output_dim: int = None):
         """
-        初始化解码器
-        
+        Initialize decoder.
+
         Args:
-            latent_dim: 潜在空间维度
-            hidden_dims: 隐藏层维度列表，默认为[256, 512]
-            output_dim: 输出特征维度，默认为与latent_dim相同
+            latent_dim: latent space dimension
+            hidden_dims: hidden layer dimensions, default [256, 512]
+            output_dim: output feature dimension, default = latent_dim
         """
         super(Decoder, self).__init__()
         
@@ -91,29 +94,32 @@ class Decoder(nn.Module):
         if output_dim is None:
             output_dim = latent_dim
         
-        # 构建解码器网络
+        # Build decoder network
         layers = []
         prev_dim = latent_dim
-        for hidden_dim in hidden_dims:
+        for i, hidden_dim in enumerate(hidden_dims):
             layers.append(nn.Linear(prev_dim, hidden_dim))
-            layers.append(nn.ReLU())
-            layers.append(nn.Dropout(0.2))
+            # Use GELU activation (often better than ReLU here)
+            layers.append(nn.GELU())
+            # Use Dropout only on intermediate layers (speed up training)
+            if i < len(hidden_dims) - 1:
+                layers.append(nn.Dropout(0.1))  # 减少Dropout比例
             prev_dim = hidden_dim
         
-        # 输出层
+        # Output layer
         layers.append(nn.Linear(prev_dim, output_dim))
         
         self.decoder = nn.Sequential(*layers)
     
     def forward(self, z: torch.Tensor) -> torch.Tensor:
         """
-        前向传播
-        
+        Forward pass.
+
         Args:
-            z: 潜在向量，形状为 (batch_size, latent_dim)
-            
+            z: latent vectors, shape (batch_size, latent_dim)
+
         Returns:
-            x_hat: 重构特征，形状为 (batch_size, output_dim)
+            x_hat: reconstructed features, shape (batch_size, output_dim)
         """
         x_hat = self.decoder(z)
         return x_hat
@@ -121,19 +127,17 @@ class Decoder(nn.Module):
 
 class VAE(nn.Module):
     """
-    变分自编码器（VAE）模型
-    
-    包含编码器和解码器，使用重参数化技巧进行训练
+    Variational Autoencoder (VAE) model composed of Encoder and Decoder.
     """
     
     def __init__(self, encoder: Encoder, decoder: Decoder, device: str = 'cuda'):
         """
-        初始化VAE模型
-        
+        Initialize VAE model.
+
         Args:
-            encoder: 编码器模块
-            decoder: 解码器模块
-            device: 设备（'cuda'或'cpu'）
+            encoder: encoder module
+            decoder: decoder module
+            device: device string, 'cuda' or 'cpu'
         """
         super(VAE, self).__init__()
         self.encoder = encoder
@@ -142,20 +146,20 @@ class VAE(nn.Module):
         self._relocate()
     
     def _relocate(self):
-        """将模型移动到指定设备"""
+        """Move encoder and decoder to the configured device."""
         self.encoder.to(self.device)
         self.decoder.to(self.device)
     
     def reparameterization(self, mean: torch.Tensor, log_var: torch.Tensor) -> torch.Tensor:
         """
-        重参数化技巧：从潜在空间采样
-        
+        Reparameterization trick: sample from the latent distribution.
+
         Args:
-            mean: 潜在空间均值
-            log_var: 潜在空间log方差
-            
+            mean: latent mean
+            log_var: latent log-variance
+
         Returns:
-            z: 采样得到的潜在向量
+            z: sampled latent vector
         """
         std = torch.exp(0.5 * log_var)
         epsilon = torch.randn_like(std).to(self.device)
@@ -164,16 +168,16 @@ class VAE(nn.Module):
     
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
-        前向传播
-        
+        Forward pass through encoder, reparameterization and decoder.
+
         Args:
-            x: 输入特征，形状为 (batch_size, input_dim)
-            
+            x: input features, shape (batch_size, input_dim)
+
         Returns:
-            x_hat: 重构特征
-            z: 潜在向量
-            mean: 潜在空间均值
-            log_var: 潜在空间log方差
+            x_hat: reconstructed features
+            z: latent vectors
+            mean: latent mean
+            log_var: latent log-variance
         """
         mean, log_var = self.encoder(x)
         z = self.reparameterization(mean, log_var)
@@ -182,13 +186,13 @@ class VAE(nn.Module):
     
     def encode(self, x: torch.Tensor) -> torch.Tensor:
         """
-        编码输入为潜在向量（用于推理）
-        
+        Encode input into latent vectors (for inference).
+
         Args:
-            x: 输入特征
-            
+            x: input features
+
         Returns:
-            z: 潜在向量
+            z: latent vectors
         """
         mean, log_var = self.encoder(x)
         z = self.reparameterization(mean, log_var)
@@ -196,13 +200,13 @@ class VAE(nn.Module):
     
     def decode(self, z: torch.Tensor) -> torch.Tensor:
         """
-        从潜在向量解码为特征（用于推理）
-        
+        Decode latent vectors back to features (for inference).
+
         Args:
-            z: 潜在向量
-            
+            z: latent vectors
+
         Returns:
-            x_hat: 重构特征
+            x_hat: reconstructed features
         """
         return self.decoder(z)
 

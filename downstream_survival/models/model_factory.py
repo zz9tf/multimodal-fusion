@@ -22,6 +22,7 @@ from .deep_supervise_svd_gate_random_detach import DeepSuperviseSVDGateRandomCla
 from .mdlm import MDLM
 from .ps3 import PS3
 from .fbp import FBP
+from .mfmf import MFMF
 from .base_model import BaseModel
 from typing import Dict, Any, Type
 
@@ -53,7 +54,7 @@ class ModelFactory:
         'mdlm': MDLM,
         'ps3': PS3,
         'fbp': FBP,
-        # 'mfmf': MFMF
+        'mfmf': MFMF
     }
     
     @staticmethod

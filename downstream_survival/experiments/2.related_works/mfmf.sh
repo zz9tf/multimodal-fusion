@@ -7,17 +7,17 @@ source ~/zheng/miniconda3/etc/profile.d/conda.sh
 conda activate multimodal-fusion
 cd /home/zheng/zheng/multimodal-fusion/downstream_survival
 
-CUDA_DEVICE=1
+CUDA_DEVICE=0
 export CUDA_VISIBLE_DEVICES="$CUDA_DEVICE"
 
 # 数据相关参数
-DATA_ROOT_DIR="/home/zheng/zheng/public/1"
+DATA_ROOT_DIR="/home/zheng/zheng/public/2"
 RESULTS_DIR="/home/zheng/zheng/multimodal-fusion/downstream_survival/results"
 CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv"
 TARGET_CHANNELS="wsi tma clinical pathological blood icd tma_cell_density"
 
 # 实验 & 训练参数
-EXP_CODE="fbp"
+EXP_CODE="mfmf"
 SEED=5678
 K_FOLDS=10
 SPLIT_MODE="random"
@@ -31,7 +31,7 @@ EARLY_STOPPING="--early_stopping"  # 启用早停
 BATCH_SIZE=64
 
 # 模型参数
-MODEL_TYPE="fbp"
+MODEL_TYPE="mfmf"
 INPUT_DIM=1024
 DROPOUT=0.25
 N_CLASSES=2
@@ -46,6 +46,48 @@ SUBTYPING="--subtyping"
 INST_NUMBER=8
 CHANNELS_USED_IN_MODEL="wsi tma clinical pathological blood icd tma_cell_density"
 OUTPUT_DIM=128
+
+# Attention相关参数
+ATTENTION_NUM_HEADS=8
+# other tma | wsi | reconstruct
+# FUSION_BLOCKS_SEQUENCE='[{"q": "other", "kv": "tma"}, {"q": "result", "kv": "wsi"}, {"q": "reconstruct", "kv": "result"}]'
+# FUSION_BLOCKS_SEQUENCE='[{"q": "tma", "kv": "other"}, {"q": "result", "kv": "wsi"}, {"q": "reconstruct", "kv": "result"}]'
+# # other tma | reconstruct | wsi
+# FUSION_BLOCKS_SEQUENCE='[{"q": "other", "kv": "tma"}, {"q": "result", "kv": "reconstruct"}, {"q": "result", "kv": "wsi"}]'
+FUSION_BLOCKS_SEQUENCE='[{"q": "tma", "kv": "other"}, {"q": "result", "kv": "reconstruct"}, {"q": "result", "kv": "wsi"}]'
+# # other wsi | tma | reconstruct
+# FUSION_BLOCKS_SEQUENCE='[{"q": "other", "kv": "wsi"}, {"q": "result", "kv": "tma"}, {"q": "reconstruct", "kv": "result"}]'
+# FUSION_BLOCKS_SEQUENCE='[{"q": "wsi", "kv": "other"}, {"q": "result", "kv": "tma"}, {"q": "reconstruct", "kv": "result"}]'
+# # other wsi | reconstruct | tma
+# FUSION_BLOCKS_SEQUENCE='[{"q": "other", "kv": "wsi"}, {"q": "result", "kv": "reconstruct"}, {"q": "result", "kv": "tma"}]'
+# FUSION_BLOCKS_SEQUENCE='[{"q": "wsi", "kv": "other"}, {"q": "result", "kv": "reconstruct"}, {"q": "result", "kv": "tma"}]'
+# # other reconstruct | tma | wsi
+# FUSION_BLOCKS_SEQUENCE='[{"q": "other", "kv": "reconstruct"}, {"q": "result", "kv": "tma"}, {"q": "result", "kv": "wsi"}]'
+# FUSION_BLOCKS_SEQUENCE='[{"q": "reconstruct", "kv": "other"}, {"q": "result", "kv": "tma"}, {"q": "result", "kv": "wsi"}]'
+# # other reconstruct | wsi | tma
+# FUSION_BLOCKS_SEQUENCE='[{"q": "other", "kv": "reconstruct"}, {"q": "result", "kv": "wsi"}, {"q": "result", "kv": "tma"}]'
+# FUSION_BLOCKS_SEQUENCE='[{"q": "reconstruct", "kv": "other"}, {"q": "result", "kv": "wsi"}, {"q": "result", "kv": "tma"}]'
+
+# # tma reconstruct | other | wsi
+# FUSION_BLOCKS_SEQUENCE='[{"q": "tma", "kv": "reconstruct"}, {"q": "result", "kv": "other"}, {"q": "result", "kv": "wsi"}]'
+# FUSION_BLOCKS_SEQUENCE='[{"q": "reconstruct", "kv": "tma"}, {"q": "result", "kv": "other"}, {"q": "result", "kv": "wsi"}]'
+# # tma reconstruct | wsi | other
+# FUSION_BLOCKS_SEQUENCE='[{"q": "tma", "kv": "reconstruct"}, {"q": "result", "kv": "wsi"}, {"q": "result", "kv": "other"}]'
+# FUSION_BLOCKS_SEQUENCE='[{"q": "reconstruct", "kv": "tma"}, {"q": "result", "kv": "wsi"}, {"q": "result", "kv": "other"}]'
+# # tma wsi | other | reconstruct
+# FUSION_BLOCKS_SEQUENCE='[{"q": "tma", "kv": "wsi"}, {"q": "result", "kv": "other"}, {"q": "reconstruct", "kv": "result"}]'
+# FUSION_BLOCKS_SEQUENCE='[{"q": "wsi", "kv": "tma"}, {"q": "result", "kv": "other"}, {"q": "reconstruct", "kv": "result"}]'
+# # tma wsi | reconstruct | other
+# FUSION_BLOCKS_SEQUENCE='[{"q": "tma", "kv": "wsi"}, {"q": "result", "kv": "reconstruct"}, {"q": "result", "kv": "other"}]'
+# FUSION_BLOCKS_SEQUENCE='[{"q": "wsi", "kv": "tma"}, {"q": "result", "kv": "reconstruct"}, {"q": "result", "kv": "other"}]'
+
+# # reconstruct tma | other | wsi
+# FUSION_BLOCKS_SEQUENCE='[{"q": "reconstruct", "kv": "tma"}, {"q": "result", "kv": "other"}, {"q": "result", "kv": "wsi"}]'
+# FUSION_BLOCKS_SEQUENCE='[{"q": "tma", "kv": "reconstruct"}, {"q": "result", "kv": "other"}, {"q": "result", "kv": "wsi"}]'
+# # reconstruct wsi | tma | other
+# FUSION_BLOCKS_SEQUENCE='[{"q": "reconstruct", "kv": "wsi"}, {"q": "result", "kv": "tma"}, {"q": "other", "kv": "result"}]'
+# FUSION_BLOCKS_SEQUENCE='[{"q": "wsi", "kv": "reconstruct"}, {"q": "result", "kv": "tma"}, {"q": "other", "kv": "result"}]'
+
 
 # 运行训练
 python main.py \
@@ -77,4 +119,6 @@ python main.py \
     --subtyping $SUBTYPING \
     --inst_number $INST_NUMBER \
     --channels_used_in_model $CHANNELS_USED_IN_MODEL \
-    --output_dim $OUTPUT_DIM
+    --output_dim $OUTPUT_DIM \
+    --attention_num_heads $ATTENTION_NUM_HEADS \
+    --fusion_blocks_sequence "$FUSION_BLOCKS_SEQUENCE"

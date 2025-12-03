@@ -104,7 +104,7 @@ class GateSharedMIL(BaseModel):
         """
         处理输入数据，将多模态数据转换为统一的张量格式
         """
-        input_features = {channel: input_data[channel].squeeze(0) for channel in self.channels_used_in_model} # [channel, simple_number, simple_dim]
+        input_features = {channel: input_data[channel].squeeze(0) for channel in self.channels_used_in_model if not channel == 'wsi=reconstructed'} # [channel, simple_number, simple_dim]
         return input_features
     
     def forward(self, input_data, label):

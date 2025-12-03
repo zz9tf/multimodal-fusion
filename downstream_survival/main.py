@@ -91,6 +91,20 @@ def _get_model_specific_config(args):
         'weight_random_loss': args.weight_random_loss,
     }
     
+    # Parse fusion_blocks_sequence from JSON string
+    if isinstance(args.fusion_blocks_sequence, str):
+        try:
+            fusion_blocks_sequence = json.loads(args.fusion_blocks_sequence)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Failed to parse fusion_blocks_sequence as JSON: {e}")
+    else:
+        raise ValueError(f"fusion_blocks_sequence must be a JSON string, got {type(args.fusion_blocks_sequence)}")
+    
+    attention_block_config = {
+        'fusion_blocks_sequence': fusion_blocks_sequence,
+        'attention_num_heads': args.attention_num_heads,
+    }
+    
     if model_type == 'mil':
         return {
             **mil_config,
@@ -198,6 +212,7 @@ def _get_model_specific_config(args):
     elif model_type == 'mfmf':
         return {
             **clam_config,
+            **attention_block_config,
         }
     else:
         # 为其他模型类型返回空配置，可以根据需要扩展
@@ -438,7 +453,7 @@ def parse_channels(channels):
     解析channels列表，将简化的通道名称映射为完整的HDF5路径
     
     支持的通道类型：
-    - WSI: 'wsi' -> 'wsi=features'
+    - WSI: 'wsi' -> 'wsi=features', 'wsi=reconstructed_features'
     - TMA Features: 'tma', 'cd163', 'cd3', 'cd56', 'cd68', 'cd8', 'he', 'mhc1', 'pdl1'
     - TMA Patches: 'tma_patches', 'cd163_patches', 'cd3_patches', etc.
     - Clinical: 'clinical', 'clinical_ori', 'clinical_mask', 'clinical_ori_mask'
@@ -465,7 +480,7 @@ def parse_channels(channels):
     # 支持的通道类型映射
     CHANNEL_MAPPINGS = {
         # WSI通道
-        'wsi': ['wsi=features'],
+        'wsi': ['wsi=features', 'wsi=reconstructed_features'],
         
         # TMA Features通道
         'tma': [f'tma={channel}=features' for channel in TMA_CHANNELS],
@@ -614,7 +629,8 @@ def main(args, configs):
         align_channels=align_channels,
         alignment_model_path=experiment_config['alignment_model_path'],
         device=device,
-        print_info=True
+        print_info=True,
+        preload_all=True,
     )
     
     # 创建结果目录
@@ -890,6 +906,13 @@ if __name__ == "__main__":
                         help='Random Loss: 启用随机损失')
     parser.add_argument('--weight_random_loss', type=float, default=0.1, 
                         help='Random Loss: 随机损失权重')
+    
+    # Attention相关参数
+    parser.add_argument('--attention_num_heads', type=int, default=8,
+                        help='Attention: 注意力头数')
+    parser.add_argument('--fusion_blocks_sequence', type=str,
+                        default='[{"q": "other", "kv": "tma"}, {"q": "result", "kv": "wsi"}, {"q": "reconstruct", "kv": "result"}]',
+                        help='Attention: 融合块序列 (JSON string)')
     
     # 解析参数
     args = parser.parse_args()

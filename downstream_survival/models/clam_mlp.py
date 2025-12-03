@@ -232,7 +232,9 @@ class ClamMLP(BaseModel):
         new_input_data = {}
         modalities_used_in_model = set()
         for channel in self.channels_used_in_model:
-            if channel.startswith('wsi='): # 处理WSI通道
+            if channel.startswith('wsi=reconstructed'): # 处理WSI通道
+                continue
+            elif channel.startswith('wsi=features'): # 处理WSI通道
                 new_input_data[channel] = input_data[channel].squeeze(0).to(self.device)
                 modalities_used_in_model.add('wsi=features')
             if channel.startswith('tma='): # 处理TMA通道
