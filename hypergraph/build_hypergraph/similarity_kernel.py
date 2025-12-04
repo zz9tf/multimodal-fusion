@@ -218,12 +218,12 @@ def mean_pool_with_similarity(
     lambda_g: float = 1.0
 ) -> torch.Tensor:
     """
-    Perform mean pooling of features weighted by combined similarity.
-    
-    For each patch i, compute weighted mean of all patches j:
-    pooled_i = Σ_j (κ(x_i, x_j) * h_j) / Σ_j κ(x_i, x_j)
-    
-    The weighted sum is always normalized by the sum of similarities.
+    Perform plain mean pooling of features without similarity weights.
+
+    For all patches j, compute the global mean feature:
+    pooled = (1 / N) * Σ_j h_j
+
+    The same pooled feature vector is assigned to all nodes.
     
     Parameters
     ----------
@@ -239,21 +239,12 @@ def mean_pool_with_similarity(
     Returns
     -------
     torch.Tensor
-        Pooled features, shape [N, D]
+        Pooled features, shape [N, D], where each row is the global mean feature
     """
-    # Compute combined similarity matrix
-    K = compute_combined_similarity(features, positions, lambda_h, lambda_g)  # [N, N]
+    # Compute global mean feature across all nodes
+    pooled_feature = torch.mean(features, dim=0, keepdim=True)  # [1, D]
     
-    # Weighted sum: K @ features = [N, N] @ [N, D] = [N, D]
-    weighted_sum = torch.mm(K, features)  # [N, D]
-    
-    # Normalize by sum of similarities for each node (always normalize)
-    similarity_sums = torch.sum(K, dim=1, keepdim=True)  # [N, 1]
-    # Avoid division by zero
-    similarity_sums = torch.clamp(similarity_sums, min=1e-8)
-    pooled_features = weighted_sum / similarity_sums  # [N, D]
-    
-    return pooled_features
+    return pooled_feature
 
 def build_hypergraph_data(
     features: torch.Tensor,
