@@ -17,8 +17,8 @@ CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/su
 TARGET_CHANNELS="wsi tma clinical pathological blood icd tma_cell_density"
 
 # 实验 & 训练参数
-CONFIG=2
-EXP_CODE="mfmf$CONFIG"
+# 可以通过列表显式指定要运行的 CONFIG 索引，例如："5 7 9 13"
+CONFIG_LIST=(13 15 17 19)
 SEED=5678
 K_FOLDS=10
 SPLIT_MODE="random"
@@ -104,47 +104,79 @@ declare -a FUSION_BLOCKS_SEQUENCE_LIST=(
     '[{"q": "wsi", "kv": "reconstruct"}, {"q": "result", "kv": "tma"}, {"q": "other", "kv": "result"}]'
 )
 
-# 根据CONFIG选择对应的fusion blocks sequence
-# 检查CONFIG是否在有效范围内
-if [ "$CONFIG" -ge 0 ] && [ "$CONFIG" -lt "${#FUSION_BLOCKS_SEQUENCE_LIST[@]}" ]; then
+# 检查配置索引是否有效
+MAX_CONFIG=$((${#FUSION_BLOCKS_SEQUENCE_LIST[@]}-1))
+for CFG in "${CONFIG_LIST[@]}"; do
+    if [ "$CFG" -lt 0 ] || [ "$CFG" -gt "$MAX_CONFIG" ]; then
+        echo "Error: CONFIG index $CFG is out of range (0-$MAX_CONFIG)"
+        exit 1
+    fi
+done
+
+echo "=========================================="
+echo "Starting training loop for CONFIG indices: ${CONFIG_LIST[*]}"
+echo "Total configs to run: ${#CONFIG_LIST[@]}"
+echo "=========================================="
+
+# 循环运行多个CONFIG（按列表中的索引）
+for CONFIG in "${CONFIG_LIST[@]}"; do
+    echo ""
+    echo "=========================================="
+    echo "Running Config index: $CONFIG"
+    echo "=========================================="
+    
+    # 根据CONFIG选择对应的fusion blocks sequence
     FUSION_BLOCKS_SEQUENCE="${FUSION_BLOCKS_SEQUENCE_LIST[$CONFIG]}"
+    EXP_CODE="mfmf$CONFIG"
+    
     echo "Using Config $CONFIG: $FUSION_BLOCKS_SEQUENCE"
-else
-    echo "Error: CONFIG=$CONFIG is out of range (0-$((${#FUSION_BLOCKS_SEQUENCE_LIST[@]}-1)))"
-    exit 1
-fi
+    echo "Experiment code: $EXP_CODE"
+    
+    # 运行训练
+    python main.py \
+        --data_root_dir "$DATA_ROOT_DIR" \
+        --results_dir "$RESULTS_DIR" \
+        --csv_path "$CSV_PATH" \
+        --target_channel $TARGET_CHANNELS \
+        --exp_code "$EXP_CODE" \
+        --seed $SEED \
+        --k $K_FOLDS \
+        --split_mode $SPLIT_MODE \
+        --max_epochs $MAX_EPOCHS \
+        --lr $LEARNING_RATE \
+        --lr_scheduler $LR_SCHEDULER \
+        --lr_scheduler_params "$LR_SCHEDULER_PARAMS" \
+        --reg $WEIGHT_DECAY \
+        --opt $OPTIMIZER \
+        $EARLY_STOPPING \
+        --batch_size $BATCH_SIZE \
+        --model_type $MODEL_TYPE \
+        --input_dim $INPUT_DIM \
+        --dropout $DROPOUT \
+        --n_classes $N_CLASSES \
+        --base_loss_fn $BASE_LOSS_FN \
+        --gate $GATE \
+        --base_weight $BASE_WEIGHT \
+        --inst_loss_fn $INST_LOSS_FN \
+        --model_size $MODEL_SIZE \
+        --subtyping $SUBTYPING \
+        --inst_number $INST_NUMBER \
+        --channels_used_in_model $CHANNELS_USED_IN_MODEL \
+        --output_dim $OUTPUT_DIM \
+        --attention_num_heads $ATTENTION_NUM_HEADS \
+        --fusion_blocks_sequence "$FUSION_BLOCKS_SEQUENCE"
+    
+    # 检查训练是否成功
+    if [ $? -eq 0 ]; then
+        echo "✓ Config $CONFIG completed successfully"
+    else
+        echo "✗ Config $CONFIG failed with exit code $?"
+        echo "Continuing with next config..."
+    fi
+    
+    echo ""
+done
 
-
-# 运行训练
-python main.py \
-    --data_root_dir "$DATA_ROOT_DIR" \
-    --results_dir "$RESULTS_DIR" \
-    --csv_path "$CSV_PATH" \
-    --target_channel $TARGET_CHANNELS \
-    --exp_code "$EXP_CODE" \
-    --seed $SEED \
-    --k $K_FOLDS \
-    --split_mode $SPLIT_MODE \
-    --max_epochs $MAX_EPOCHS \
-    --lr $LEARNING_RATE \
-    --lr_scheduler $LR_SCHEDULER \
-    --lr_scheduler_params "$LR_SCHEDULER_PARAMS" \
-    --reg $WEIGHT_DECAY \
-    --opt $OPTIMIZER \
-    $EARLY_STOPPING \
-    --batch_size $BATCH_SIZE \
-    --model_type $MODEL_TYPE \
-    --input_dim $INPUT_DIM \
-    --dropout $DROPOUT \
-    --n_classes $N_CLASSES \
-    --base_loss_fn $BASE_LOSS_FN \
-    --gate $GATE \
-    --base_weight $BASE_WEIGHT \
-    --inst_loss_fn $INST_LOSS_FN \
-    --model_size $MODEL_SIZE \
-    --subtyping $SUBTYPING \
-    --inst_number $INST_NUMBER \
-    --channels_used_in_model $CHANNELS_USED_IN_MODEL \
-    --output_dim $OUTPUT_DIM \
-    --attention_num_heads $ATTENTION_NUM_HEADS \
-    --fusion_blocks_sequence "$FUSION_BLOCKS_SEQUENCE"
+echo "=========================================="
+echo "All training jobs completed!"
+echo "=========================================="
