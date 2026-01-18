@@ -88,6 +88,9 @@ def _get_model_specific_config(args):
         'enable_random_loss': args.enable_random_loss,
         'weight_random_loss': args.weight_random_loss,
     }
+    pooling_config = {
+        'pooling_strategy': args.pooling_strategy,
+    }
     
     # Parse fusion_blocks_sequence from JSON string
     if isinstance(args.fusion_blocks_sequence, str):
@@ -211,6 +214,12 @@ def _get_model_specific_config(args):
         return {
             **clam_config,
             **attention_block_config,
+        }
+    elif model_type == 'svd_pool':
+        return {
+            **clam_config,
+            **svd_config,
+            **pooling_config,
         }
     else:
         # Return empty configuration for other model types, can be extended as needed
@@ -826,7 +835,7 @@ if __name__ == "__main__":
     parser.add_argument('--model_type', type=str, choices=[
         'mil', 'clam', 'auc_clam', 'clam_mlp', 'clam_mlp_detach', 'svd_gate_random_clam', 'svd_gate_random_clam_detach', 
         'gate_shared_mil', 'gate_mil_detach', 'gate_mil', 'gate_auc_mil', 'clip_gate_random_clam', 'clip_gate_random_clam_detach',
-        'deep_supervise_svd_gate_random', 'deep_supervise_svd_gate_random_detach',
+        'deep_supervise_svd_gate_random', 'deep_supervise_svd_gate_random_detach', 'svd_pool',
         'mdlm', 'ps3', 'fbp', 'mfmf'
         ], 
                         default='clam', help='Model type (default: clam)')
@@ -912,6 +921,9 @@ if __name__ == "__main__":
                         default='[{"q": "other", "kv": "tma"}, {"q": "result", "kv": "wsi"}, {"q": "reconstruct", "kv": "result"}]',
                         help='Attention: fusion block sequence (JSON string)')
     
+    # Pooling related parameters
+    parser.add_argument('--pooling_strategy', type=str, choices=['mean', 'max', 'sum'], default='mean',
+                        help='Pooling strategy: mean=mean pooling, max=max pooling, sum=sum pooling')
     # Parse arguments
     args = parser.parse_args()
     args.target_channels = parse_channels(args.target_channels)

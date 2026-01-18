@@ -19,6 +19,7 @@ from .clip_gate_random_clam import ClipGateRandomClam
 from .clip_gate_random_clam_detach import ClipGateRandomClamDetach
 from .deep_supervise_svd_gate_random import DeepSuperviseSVDGateRandomClam
 from .deep_supervise_svd_gate_random_detach import DeepSuperviseSVDGateRandomClamDetach
+from .svd_pool import SVDPool
 from .mdlm import MDLM
 from .ps3 import PS3
 from .fbp import FBP
@@ -51,6 +52,7 @@ class ModelFactory:
         'gate_mil_detach': GateMILDetach,
         'deep_supervise_svd_gate_random': DeepSuperviseSVDGateRandomClam,
         'deep_supervise_svd_gate_random_detach': DeepSuperviseSVDGateRandomClamDetach,
+        'svd_pool': SVDPool,
         'mdlm': MDLM,
         'ps3': PS3,
         'fbp': FBP,
