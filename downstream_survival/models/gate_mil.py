@@ -5,19 +5,19 @@ from .gate_shared_mil import GateSharedMIL
 
 class GateMIL(GateSharedMIL):
     """
-    GatedGTECLAM 模型
-    
-    配置参数：
-    - n_classes: 类别数量
-    - input_dim: 输入维度
-    - model_size: 模型大小 ('small', 'big', '128*64', '64*32', '32*16', '16*8', '8*4', '4*2', '2*1')
-    - dropout: dropout率
-    - gate: 是否使用门控注意力
-    - inst_number: 正负样本采样数量
-    - instance_loss_fn: 实例损失函数
-    - subtyping: 是否为子类型问题
-    - shared_gated: 是否共享门控注意力
-    - use_auc_loss: 是否使用AUC损失
+    GatedGTECLAM model
+
+    Configuration parameters:
+    - n_classes: Number of classes
+    - input_dim: Input dimension
+    - model_size: Model size ('small', 'big', '128*64', '64*32', '32*16', '16*8', '8*4', '4*2', '2*1')
+    - dropout: Dropout rate
+    - gate: Whether to use gated attention
+    - inst_number: Number of positive/negative samples
+    - instance_loss_fn: Instance loss function
+    - subtyping: Whether it's a subtyping problem
+    - shared_gated: Whether to share gated attention
+    - use_auc_loss: Whether to use AUC loss
     """
     
     def __init__(self, config):
@@ -31,22 +31,22 @@ class GateMIL(GateSharedMIL):
     
     def forward(self, input_data, label):
         """
-        统一的前向传播接口
-        
+        Unified forward propagation interface
+
         Args:
-            input_data: 输入数据，可以是：
-                - torch.Tensor: 单模态特征 [N, D]
-                - Dict[str, torch.Tensor]: 多模态数据字典
-            **kwargs: 其他参数，支持：
-                - label: 标签（用于实例评估）
-                - instance_eval: 是否进行实例评估
-                - return_features: 是否返回特征
-                - attention_only: 是否只返回注意力权重
-                
+            input_data: Input data, can be:
+                - torch.Tensor: Single-modal features [N, D]
+                - Dict[str, torch.Tensor]: Multimodal data dictionary
+            **kwargs: Other parameters, support:
+                - label: Labels (for instance evaluation)
+                - instance_eval: Whether to perform instance evaluation
+                - return_features: Whether to return features
+                - attention_only: Whether to return only attention weights
+
         Returns:
-            Dict[str, Any]: 统一格式的结果字典
+            Dict[str, Any]: Unified format result dictionary
         """
-        # 处理输入数据（支持多模态）
+        # Process input data (support multimodal)
         input_features = self._process_input_data(input_data)
         
         result_kwargs = dict()
@@ -96,7 +96,7 @@ class GateMIL(GateSharedMIL):
         Y_prob = F.softmax(logits, dim = 1)
         
         
-        # 构建统一的结果字典
+        # Build unified result dictionary
         return self._create_result_dict(
             logits=logits,
             probabilities=Y_prob,

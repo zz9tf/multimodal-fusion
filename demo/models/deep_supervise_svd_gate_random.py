@@ -1,0 +1,137 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from .svd_gate_random_clam import SVDGateRandomClam
+import random
+from typing import Dict, List, Tuple
+
+class DeepSuperviseSVDGateRandomClam(SVDGateRandomClam):
+    """
+    CLAM MLP 模型
+    
+    配置参数：
+    - n_classes: 类别数量
+    - input_dim: 输入维度
+    - model_size: 模型大小 ('small', 'big', '128*64', '64*32', '32*16', '16*8', '8*4', '4*2', '2*1')
+    - dropout: dropout率
+    - gate: 是否使用门控注意力
+    - inst_number: 正负样本采样数量
+    - instance_loss_fn: 实例损失函数
+    - subtyping: 是否为子类型问题
+    """
+    
+    def __init__(self, config):
+        super().__init__(config)
+        
+        self.init_deep_supervise_layers()
+        self.deep_supervise_fn = nn.CrossEntropyLoss(reduction='mean')
+    
+    def init_deep_supervise_layers(self):
+        self.ClassifierCreator = lambda: nn.Sequential(
+            nn.Linear(self.output_dim, self.size[1]), 
+            nn.ReLU(),
+            nn.Dropout(self.dropout), 
+            nn.Linear(self.size[1], self.n_classes)
+        )
+        
+        self.Classifier = nn.ModuleDict({channel: self.ClassifierCreator() for channel in self.used_modality})
+        
+    def deep_supervise_forward(self, channel: str, feature: torch.Tensor, labels: torch.Tensor) -> Dict[str, torch.Tensor]:
+        """
+        计算深度监督前向传播
+        """
+        logits = self.Classifier[channel](feature)
+        logits_loss = self.deep_supervise_fn(logits, labels)
+        return {
+            'logits': logits, 
+            'logits_loss': logits_loss
+        }
+
+    def forward(self, input_data, label):
+        """
+        统一的前向传播接口
+        
+        Args:
+            input_data: 输入数据，可以是：
+                - torch.Tensor: 单模态特征 [N, D]
+                - Dict[str, torch.Tensor]: 多模态数据字典
+            label: 标签（用于实例评估）
+                
+        Returns:
+            Dict[str, Any]: 统一格式的结果字典
+        """
+        input_data, modalities_used_in_model = self._process_input_data(input_data)
+        # 初始化结果字典
+        result_kwargs = {}
+        
+        # 初始化融合特征
+        features_dict = {}
+        for channel in modalities_used_in_model:
+            if channel == 'wsi=features':
+                clam_result_kwargs = self._clam_forward(channel, input_data[channel], label)
+                for key, value in clam_result_kwargs.items():
+                    result_kwargs[f'{channel}_{key}'] = value
+                features_dict[channel] = clam_result_kwargs['features']
+            elif channel == 'tma=features':
+                clam_result_kwargs = self._clam_forward(channel, input_data[channel], label)
+                for key, value in clam_result_kwargs.items():
+                    result_kwargs[f'{channel}_{key}'] = value
+                features_dict[channel] = clam_result_kwargs['features']
+            else:
+                if channel not in self.transfer_layer:
+                    self.transfer_layer[channel] = self.create_transfer_layer(input_data[channel].shape[1])
+                features_dict[channel] = self.transfer_layer[channel](input_data[channel])
+                deep_supervise_result_kwargs = self.deep_supervise_forward(channel, features_dict[channel], label)
+                for key, value in deep_supervise_result_kwargs.items():
+                    result_kwargs[f'{channel}_{key}'] = value
+        
+        if self.enable_svd:
+            if not hasattr(self, 'alignment_features'):
+                self.alignment_features = []
+            if self.return_svd_features:
+                original_features_dict = features_dict.copy()
+                features_dict = self.align_forward(features_dict)
+                return {
+                    'features': original_features_dict,
+                    'aligned_features': features_dict,
+                }
+            else:
+                features_dict = self.align_forward(features_dict)
+            self.alignment_features.append(features_dict)
+            if self.enable_dynamic_gate:
+                result = self.gated_forward(features_dict, label)
+                for key, value in result.items():
+                    result_kwargs[f'gated_{key}'] = value
+                features_dict = result['gated_features']
+        else:
+            if self.enable_dynamic_gate:
+                result = self.gated_forward(features_dict, label)
+                for key, value in result.items():
+                    result_kwargs[f'gated_{key}'] = value
+                features_dict = result['gated_features']
+                
+        if self.enable_random_loss and self.training:
+            sorted_keys = sorted(features_dict.keys())
+            drop_modality = random.sample(sorted_keys, random.randint(1, len(features_dict)-1))
+            h_partial = []
+            for modality in sorted_keys:
+                if modality not in drop_modality:
+                    h_partial.append(features_dict[modality])
+                else:
+                    h_partial.append(torch.zeros_like(features_dict[modality]).to(self.device))
+            h_partial = torch.cat(h_partial, dim=1).to(self.device)
+            logits = self.fusion_prediction(h_partial)
+            result_kwargs['random_partial_loss'] = self.base_loss_fn(logits, label)
+            
+        sorted_keys = sorted(features_dict.keys())
+        h = torch.cat([features_dict[mod] for mod in sorted_keys], dim=1).to(self.device)
+
+        logits = self.fusion_prediction(h)
+        Y_prob = F.softmax(logits, dim = 1)
+        Y_hat = torch.topk(logits, 1, dim = 1)[1]
+        
+        # 更新结果字典
+        result_kwargs['Y_prob'] = Y_prob
+        result_kwargs['Y_hat'] = Y_hat
+        
+        return self._create_result_dict(logits, Y_prob, Y_hat, **result_kwargs)

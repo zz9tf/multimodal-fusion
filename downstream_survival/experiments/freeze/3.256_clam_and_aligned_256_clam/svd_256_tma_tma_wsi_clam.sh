@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # =============================================================================
-# 环境设置
+# Environment Setup
 # =============================================================================
 source ~/zheng/miniconda3/etc/profile.d/conda.sh
 conda activate multimodal-fusion
@@ -10,14 +10,14 @@ cd /home/zheng/zheng/multimodal-fusion/downstream_survival
 CUDA_DEVICE=1
 export CUDA_VISIBLE_DEVICES="$CUDA_DEVICE"
 
-# 数据相关参数
+# Data-related parameters
 DATA_ROOT_DIR="/home/zheng/zheng/mini2/hancock_data/WSI_UNI_encodings/WSI_PrimaryTumor"
 RESULTS_DIR="/home/zheng/zheng/multimodal-fusion/downstream_survival/results"
 CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv"
 ALIGNMENT_MODEL_PATH="/home/zheng/zheng/multimodal-fusion/alignment/results/256_tma_svd/rank1_256_tma_svd_multimodal_alignment_model.pth"
 ALIGNED_CHANNELS="tma_CD3_patch256_stride256=CD3 tma_CD8_patch256_stride256=CD8 tma_CD56_patch256_stride256=CD56 tma_CD68_patch256_stride256=CD68 tma_CD163_patch256_stride256=CD163 tma_HE_patch256_stride256=HE tma_MHC1_patch256_stride256=MHC1 tma_PDL1_patch256_stride256=PDL1"
 TARGET_CHANNELS="features tma_CD3_patch256_stride256 tma_CD8_patch256_stride256 tma_CD56_patch256_stride256 tma_CD68_patch256_stride256 tma_CD163_patch256_stride256 tma_HE_patch256_stride256 tma_MHC1_patch256_stride256 tma_PDL1_patch256_stride256"
-# 实验 & 训练参数
+# Experiment & Training parameters
 EXP_CODE="svd_256_tma_tma_wsi_clam" # 256 tma & wsi with clam model
 SEED=5678
 K_FOLDS=10

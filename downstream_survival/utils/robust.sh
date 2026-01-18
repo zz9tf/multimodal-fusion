@@ -4,7 +4,7 @@ source ~/zheng/miniconda3/etc/profile.d/conda.sh
 conda activate multimodal-fusion
 cd /home/zheng/zheng/multimodal-fusion/downstream_survival
 
-# # 为所有结果目录运行 robust_on_missing_modality.py
+# # Run robust_on_missing_modality.py for all result directories
 #   python /home/zheng/zheng/multimodal-fusion/downstream_survival/utils/robust_on_missing_modality.py \
 #   --results_dir /home/zheng/zheng/multimodal-fusion/downstream_survival/results/20251106-194148_svd_random_clam_detach_s5678 \
 #   --csv_path /home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv \

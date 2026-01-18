@@ -8,18 +8,18 @@ from .clam_mlp import ClamMLP
 
 class MDLM(ClamMLP):
     """
-    CLAM + Late Fusion 模型，输出离散标签预测。
+    CLAM + Late Fusion model, outputs discrete label predictions.
     """
 
     def __init__(self, config: Dict):
-        """初始化模态顺序及 late fusion 层。"""
+        """Initialize modality order and late fusion layer."""
         super().__init__(config)
         self.modality_order = sorted(list(self.used_modality))
         self._init_prediction_heads()
         self.late_fusion_layer = None
 
     def _init_prediction_heads(self) -> None:
-        """初始化各模态的线性分类头。"""
+        """Initialize linear classification heads for each modality."""
         self.prediction_head_dict = nn.ModuleDict(
             {
                 key: nn.Linear(self.output_dim, self.n_classes)
@@ -29,7 +29,7 @@ class MDLM(ClamMLP):
 
     def forward(self, input_data, label):
         """
-        前向传播：CLAM 提取模态表征 + 线性分类 per-modality + late fusion。
+        Forward propagation: CLAM extracts modality representations + linear classification per-modality + late fusion.
         """
         input_data, modalities_used_in_model = self._process_input_data(input_data)
         result_kwargs = {}

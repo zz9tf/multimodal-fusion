@@ -5,32 +5,32 @@ from typing import Dict
 from .base_model import BaseModel
 
 """
-MIL (Multiple Instance Learning) 模型
-纯MIL模式，不使用注意力机制
+MIL (Multiple Instance Learning) model
+Pure MIL mode, does not use attention mechanism
 """
 
 class MIL_fc(BaseModel):
     """
-    MIL模型（支持二分类和多分类）
-    
-    配置参数：
-    - n_classes: 类别数量
-    - input_dim: 输入维度
-    - model_size: 模型大小 ('small', 'big', '128*64', '64*32', '32*16', '16*8', '8*4', '4*2', '2*1')
-    - dropout: dropout率
+    MIL model (supports binary and multi-classification)
+
+    Configuration parameters:
+    - n_classes: Number of classes
+    - input_dim: Input dimension
+    - model_size: Model size ('small', 'big', '128*64', '64*32', '32*16', '16*8', '8*4', '4*2', '2*1')
+    - dropout: Dropout rate
     """
     
     def __init__(self, config):
         super().__init__(config)
         
-        # 验证配置完整性
+        # Validate configuration completeness
         self._validate_config(config)
         
         # 从配置中提取参数
         self.channels_used_in_model = config['channels_used_in_model']
         self.model_size = config['model_size']
         
-        # 模型大小配置
+        # Model size configuration
         self.size_dict = {
             "small": [self.input_dim, 512], 
             "big": [self.input_dim, 512], 
@@ -45,52 +45,52 @@ class MIL_fc(BaseModel):
         
         size = self.size_dict[self.model_size]
         
-        # 构建特征提取层
+        # Build feature extraction layer
         fc = [nn.Linear(size[0], size[1]), nn.ReLU(), nn.Dropout(self.dropout)]
         self.fc = nn.Sequential(*fc)
         
-        # 构建分类器
+        # Build classifier
         self.classifier = nn.Linear(size[1], self.n_classes)
     
     def _validate_config(self, config):
-        """验证配置完整性"""
+        """Validate configuration completeness"""
         required_params = ['n_classes', 'input_dim', 'model_size', 'dropout']
         missing_params = [param for param in required_params if param not in config]
         if missing_params:
-            raise ValueError(f"MIL_fc配置缺少必需参数: {missing_params}")
-        
-        # 验证类别数量
+            raise ValueError(f"MIL_fc configuration missing required parameters: {missing_params}")
+
+        # Validate number of classes
         if config['n_classes'] < 2:
-            raise ValueError(f"类别数量必须 >= 2，当前: {config['n_classes']}")
-        
-        # 验证模型大小
+            raise ValueError(f"Number of classes must be >= 2, current: {config['n_classes']}")
+
+        # Validate model size
         valid_sizes = ["small", "big", "128*64", "64*32", "32*16", "16*8", "8*4", "4*2", "2*1"]
         if config['model_size'] not in valid_sizes:
-            raise ValueError(f"不支持的模型大小: {config['model_size']}，支持的大小: {valid_sizes}")
-        
-        # 验证输入维度
+            raise ValueError(f"Unsupported model size: {config['model_size']}, supported sizes: {valid_sizes}")
+
+        # Validate input dimension
         if config['input_dim'] <= 0:
-            raise ValueError(f"输入维度必须 > 0，当前: {config['input_dim']}")
-        
-        # 验证dropout率
+            raise ValueError(f"Input dimension must be > 0, current: {config['input_dim']}")
+
+        # Validate dropout rate
         if not 0 <= config['dropout'] <= 1:
-            raise ValueError(f"dropout率必须在[0,1]范围内，当前: {config['dropout']}")
+            raise ValueError(f"Dropout rate must be in [0,1] range, current: {config['dropout']}")
     
     def _process_input_data(self, multimodal_data: Dict[str, torch.Tensor]) -> torch.Tensor:
         """
-        MIL模型的多模态数据融合策略
-        
+        MIL model's multimodal data fusion strategy
+
         Args:
-            multimodal_data: 多模态数据字典，如 {"features": tensor, "aligned_features": tensor}
-            
+            multimodal_data: Multimodal data dictionary, e.g. {"features": tensor, "aligned_features": tensor}
+
         Returns:
-            torch.Tensor: 融合后的特征张量
+            torch.Tensor: Fused feature tensor
         """
         return torch.cat([multimodal_data[channel] for channel in self.channels_used_in_model], dim=1).squeeze(0)
     
     def forward(self, input_data, label):
         """
-        前向传播 - 按照原来的简单写法
+        Forward propagation - following the original simple approach
         """
         h = self._process_input_data(input_data)
         h = self.fc(h)
@@ -98,13 +98,13 @@ class MIL_fc(BaseModel):
         
         y_probs = F.softmax(logits, dim=1)
         if self.n_classes == 2:
-            # 二分类：选择正类概率最高的实例
+            # Binary classification: select instance with highest positive class probability
             top_instance_idx = torch.topk(y_probs[:, 1], 1, dim=0)[1].view(1,)
             selected_logits = torch.index_select(logits, dim=0, index=top_instance_idx)
             Y_prob = torch.index_select(y_probs, dim=0, index=top_instance_idx)
             Y_hat = torch.topk(selected_logits, 1, dim=1)[1]
         else:
-            # 多分类：选择全局概率最高的实例
+            # Multi-classification: select instance with highest global probability
             m = y_probs.view(1, -1).argmax(1)
             top_indices = torch.cat(((m // self.n_classes).view(-1, 1), (m % self.n_classes).view(-1, 1)), dim=1).view(-1, 1)
             selected_logits = logits[top_indices[0]:top_indices[0]+1]
@@ -119,6 +119,6 @@ class MIL_fc(BaseModel):
     
     def loss_fn(self, logits: torch.Tensor, labels: torch.Tensor, result: Dict[str, float]) -> torch.Tensor:
         """
-        计算损失
+        Calculate loss
         """
         return self.base_loss_fn(logits, labels)

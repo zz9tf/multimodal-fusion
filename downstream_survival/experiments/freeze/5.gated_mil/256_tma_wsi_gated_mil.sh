@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # =============================================================================
-# 环境设置
+# Environment Setup
 # =============================================================================
 source ~/zheng/miniconda3/etc/profile.d/conda.sh
 conda activate multimodal-fusion
@@ -10,13 +10,13 @@ cd /home/zheng/zheng/multimodal-fusion/downstream_survival
 CUDA_DEVICE=1
 export CUDA_VISIBLE_DEVICES="$CUDA_DEVICE"
 
-# 数据相关参数
+# Data-related parameters
 DATA_ROOT_DIR="/home/zheng/zheng/mini2/hancock_data/WSI_UNI_encodings/WSI_PrimaryTumor"
 RESULTS_DIR="/home/zheng/zheng/multimodal-fusion/downstream_survival/results"
 CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv"
 TARGET_CHANNELS="features tma_CD3_patch256_stride256 tma_CD8_patch256_stride256 tma_CD56_patch256_stride256 tma_CD68_patch256_stride256 tma_CD163_patch256_stride256 tma_HE_patch256_stride256 tma_MHC1_patch256_stride256 tma_PDL1_patch256_stride256"
 
-# 实验 & 训练参数
+# Experiment & Training parameters
 EXP_CODE="256_tma_wsi_gated_mil"
 SEED=5678
 K_FOLDS=10

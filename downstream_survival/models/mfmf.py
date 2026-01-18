@@ -69,16 +69,16 @@ class MFMF(ClamMLP):
         modality_features = {}  # For fusion module
         
         for channel in self.channels_used_in_model:
-            if channel.endswith('=mask'): # process mask channel
+            if channel.endswith('=mask'): # Process mask channel
                 continue
             feat = input_data[channel].squeeze(0).to(self.device)
-            # process other modality mask
+            # Process other modality mask
             if not channel.startswith('wsi=') and not channel.startswith('tma='): 
                 channel_name = channel.split('=')[0]
                 if f'{channel_name}=mask' in input_data:
                     mask = input_data[f'{channel_name}=mask'].squeeze(0).to(self.device)
                     feat = feat * mask            
-            # unify dimension to output_dim
+            # Unify dimension to output_dim
             # Check if transfer_layer exists and if input dimension matches
             if channel not in self.transfer_layer:
                 self.transfer_layer[channel] = self.create_transfer_layer(feat.shape[1])
@@ -90,11 +90,11 @@ class MFMF(ClamMLP):
                     self.transfer_layer[channel] = self.create_transfer_layer(feat.shape[1])
             feat = self.transfer_layer[channel](feat)
             
-            if channel.startswith('tma='): # process TMA channel
+            if channel.startswith('tma='): # Process TMA channel
                 tma_features.append(feat)
-            elif channel.startswith('wsi='): # process WSI features & reconstructed channel
+            elif channel.startswith('wsi='): # Process WSI features & reconstructed channel
                 modality_features[feature_to_modality[channel]] = feat
-            else: # process other channel
+            else: # Process other channel
                 other_features.append(feat)
         
         # Concatenate TMA features

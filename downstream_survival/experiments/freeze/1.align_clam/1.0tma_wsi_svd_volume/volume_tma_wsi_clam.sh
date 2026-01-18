@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # =============================================================================
-# 环境设置
+# Environment Setup
 # =============================================================================
 source ~/zheng/miniconda3/etc/profile.d/conda.sh
 conda activate multimodal-fusion
@@ -10,7 +10,7 @@ cd /home/zheng/zheng/multimodal-fusion/downstream_survival
 CUDA_DEVICE=1
 export CUDA_VISIBLE_DEVICES="$CUDA_DEVICE"
 
-# 数据相关参数
+# Data-related parameters
 DATA_ROOT_DIR="/home/zheng/zheng/public/hancock_data/WSI_UNI_encodings/WSI_PrimaryTumor"
 RESULTS_DIR="/home/zheng/zheng/multimodal-fusion/downstream_survival/results"
 CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv"
@@ -18,7 +18,7 @@ ALIGNMENT_MODEL_PATH="/home/zheng/zheng/multimodal-fusion/alignment/results/volu
 TARGET_CHANNELS="features tma_CD3 tma_CD8 tma_CD56 tma_CD68 tma_CD163 tma_HE tma_MHC1 tma_PDL1"
 ALIGNED_CHANNELS="tma_CD3=CD3 tma_CD8=CD8 tma_CD56=CD56 tma_CD68=CD68 tma_CD163=CD163 tma_HE=HE tma_MHC1=MHC1 tma_PDL1=PDL1"
 
-# 实验 & 训练参数
+# Experiment & Training parameters
 EXP_CODE="volume_tma_tma_wsi_clam" # volume alignment tma & normal tma & wsi with clam model
 SEED=5678
 K_FOLDS=10

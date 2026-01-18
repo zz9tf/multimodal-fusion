@@ -7,17 +7,17 @@ from typing import Dict, List, Tuple
 
 class DeepSuperviseSVDGateRandomClam(SVDGateRandomClam):
     """
-    CLAM MLP 模型
-    
-    配置参数：
-    - n_classes: 类别数量
-    - input_dim: 输入维度
-    - model_size: 模型大小 ('small', 'big', '128*64', '64*32', '32*16', '16*8', '8*4', '4*2', '2*1')
-    - dropout: dropout率
-    - gate: 是否使用门控注意力
-    - inst_number: 正负样本采样数量
-    - instance_loss_fn: 实例损失函数
-    - subtyping: 是否为子类型问题
+    CLAM MLP model
+
+    Configuration parameters:
+    - n_classes: Number of classes
+    - input_dim: Input dimension
+    - model_size: Model size ('small', 'big', '128*64', '64*32', '32*16', '16*8', '8*4', '4*2', '2*1')
+    - dropout: Dropout rate
+    - gate: Whether to use gated attention
+    - inst_number: Number of positive/negative samples
+    - instance_loss_fn: Instance loss function
+    - subtyping: Whether it's a subtyping problem
     """
     
     def __init__(self, config):
@@ -38,7 +38,7 @@ class DeepSuperviseSVDGateRandomClam(SVDGateRandomClam):
         
     def deep_supervise_forward(self, channel: str, feature: torch.Tensor, labels: torch.Tensor) -> Dict[str, torch.Tensor]:
         """
-        计算深度监督前向传播
+        Calculate deep supervision forward propagation
         """
         logits = self.Classifier[channel](feature)
         logits_loss = self.deep_supervise_fn(logits, labels)
@@ -49,22 +49,22 @@ class DeepSuperviseSVDGateRandomClam(SVDGateRandomClam):
 
     def forward(self, input_data, label):
         """
-        统一的前向传播接口
-        
+        Unified forward propagation interface
+
         Args:
-            input_data: 输入数据，可以是：
-                - torch.Tensor: 单模态特征 [N, D]
-                - Dict[str, torch.Tensor]: 多模态数据字典
-            label: 标签（用于实例评估）
-                
+            input_data: Input data, can be:
+                - torch.Tensor: Single-modal features [N, D]
+                - Dict[str, torch.Tensor]: Multimodal data dictionary
+            label: Labels (for instance evaluation)
+
         Returns:
-            Dict[str, Any]: 统一格式的结果字典
+            Dict[str, Any]: Unified format result dictionary
         """
         input_data, modalities_used_in_model = self._process_input_data(input_data)
-        # 初始化结果字典
+        # Initialize result dictionary
         result_kwargs = {}
         
-        # 初始化融合特征
+        # Initialize fused features
         features_dict = {}
         for channel in modalities_used_in_model:
             if channel == 'wsi=features':
@@ -130,7 +130,7 @@ class DeepSuperviseSVDGateRandomClam(SVDGateRandomClam):
         Y_prob = F.softmax(logits, dim = 1)
         Y_hat = torch.topk(logits, 1, dim = 1)[1]
         
-        # 更新结果字典
+        # Update result dictionary
         result_kwargs['Y_prob'] = Y_prob
         result_kwargs['Y_hat'] = Y_hat
         

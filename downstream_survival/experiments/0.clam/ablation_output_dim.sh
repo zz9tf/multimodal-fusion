@@ -6,7 +6,7 @@
 set -euo pipefail
 
 # =============================================================================
-# 环境设置
+# Environment Setup
 # =============================================================================
 source ~/zheng/miniconda3/etc/profile.d/conda.sh
 conda activate multimodal-fusion
@@ -16,7 +16,7 @@ CUDA_DEVICE=0
 export CUDA_VISIBLE_DEVICES="$CUDA_DEVICE"
 
 # =============================================================================
-# 数据相关参数
+# Data-related parameters
 # =============================================================================
 DATA_ROOT_DIR="/home/zheng/zheng/mini2/hancock_data/WSI_UNI_encodings/WSI_PrimaryTumor"
 RESULTS_DIR="/home/zheng/zheng/multimodal-fusion/downstream_survival/results"
@@ -24,7 +24,7 @@ CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/su
 TARGET_CHANNELS="wsi tma clinical pathological blood icd tma_cell_density"
 
 # =============================================================================
-# 实验 & 训练参数（除 output_dim 外与基线一致）
+# Experiment & Training parameters（除 output_dim 外与基线一致）
 # =============================================================================
 SEED=5678
 K_FOLDS=10

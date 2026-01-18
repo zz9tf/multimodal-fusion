@@ -7,17 +7,17 @@ from typing import Dict, List, Tuple, Optional
 
 class SVDGateRandomClam(ClamMLP):
     """
-    CLAM MLP 模型
-    
-    配置参数：
-    - n_classes: 类别数量
-    - input_dim: 输入维度
-    - model_size: 模型大小 ('small', 'big', '128*64', '64*32', '32*16', '16*8', '8*4', '4*2', '2*1')
-    - dropout: dropout率
-    - gate: 是否使用门控注意力
-    - inst_number: 正负样本采样数量
-    - instance_loss_fn: 实例损失函数
-    - subtyping: 是否为子类型问题
+    CLAM MLP model
+
+    Configuration parameters:
+    - n_classes: Number of classes
+    - input_dim: Input dimension
+    - model_size: Model size ('small', 'big', '128*64', '64*32', '32*16', '16*8', '8*4', '4*2', '2*1')
+    - dropout: Dropout rate
+    - gate: Whether to use gated attention
+    - inst_number: Number of positive/negative samples
+    - instance_loss_fn: Instance loss function
+    - subtyping: Whether it's a subtyping problem
     """
     
     def __init__(self, config):
@@ -69,7 +69,7 @@ class SVDGateRandomClam(ClamMLP):
 
     def gated_forward(self, features: Dict[str, torch.Tensor], labels: torch.Tensor) -> Dict[str, torch.Tensor]:
         """
-        计算门控前向传播
+        Calculate gated forward propagation
         """
         logits_loss = 0.0
         confidence_loss = 0.0
@@ -96,7 +96,7 @@ class SVDGateRandomClam(ClamMLP):
     
     def align_forward(self, features: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """
-        计算对齐前向传播
+        Calculate alignment forward propagation
         """
         aligned_features = {}
         for channel in sorted(features.keys()):
@@ -107,11 +107,11 @@ class SVDGateRandomClam(ClamMLP):
     def _compute_rank1_loss_with_metrics(self, features: torch.Tensor, 
                                           negatives_features: Optional[torch.Tensor] = None):
         """
-        计算 rank1 损失并返回 SVD 特征值（带详细时间分析）
-        
+        Calculate rank1 loss and return SVD eigenvalues (with detailed timing analysis)
+
         Returns:
-            loss: 损失值
-            svd_values: SVD 特征值 Tensor[num_modalities]
+            loss: Loss value
+            svd_values: SVD eigenvalues Tensor[num_modalities]
         """
         # 1. SVD 计算和 loss1
         # L2 归一化：x <- x / (||x||_2 + ε)
@@ -124,14 +124,14 @@ class SVDGateRandomClam(ClamMLP):
         # _: [batch_size, feature_dim, num_modalities]
         U, S, _ = torch.linalg.svd(features)
         
-        # 📊 记录 SVD 特征值：对 batch 维度求平均（用于记录单个 batch 的代表值）
+        # 📊 Record SVD eigenvalues: average over batch dimension (for recording representative values of single batch)
         svd_values = S.mean(dim=0)  # [num_modalities]
         
         loss1 = F.cross_entropy(S / self.tau1, torch.zeros(S.shape[0]).to(S.device).long())
         
-        # 2. loss2 计算
+        # 2. loss2 calculation
         U1 = U[:, :, 0] # dominate projection [batch_size, feature_dim]
-        # 组内矩阵计算：按 loss2_chunk_size 将 batch 分组，仅组内做 softmax/CE
+        # Intra-group matrix calculation: group batches by loss2_chunk_size, only do softmax/CE within groups
         batch_count = U1.shape[0]
         if self.loss2_chunk_size is None or self.loss2_chunk_size >= batch_count:
             loss2 = F.cross_entropy((U1 @ U1.T) / self.tau2, torch.arange(batch_count, device=U1.device).long())
@@ -158,12 +158,12 @@ class SVDGateRandomClam(ClamMLP):
         # if self.lambda2 == 0:
         #     return loss1 + self.lambda1 * loss2, svd_values
 
-        # # 3. loss3 (loss_IM) 计算
+        # # 3. loss3 (loss_IM) calculation
         # batch_size = features.shape[0]
         # positive_labels = torch.ones(batch_size, device=features.device)
         
         # def fuse(feat_dict: Dict[str, torch.Tensor]) -> torch.Tensor:
-        #     # 将多模态特征拼接为单向量 [N, d*K]
+        #     # Concatenate multimodal features into single vector [N, d*K]
         #     return torch.cat(list(feat_dict.values()), dim=1)
 
         # if negatives_features is None:
@@ -183,22 +183,22 @@ class SVDGateRandomClam(ClamMLP):
     
     def forward(self, input_data, label):
         """
-        统一的前向传播接口
-        
+        Unified forward propagation interface
+
         Args:
-            input_data: 输入数据，可以是：
-                - torch.Tensor: 单模态特征 [N, D]
-                - Dict[str, torch.Tensor]: 多模态数据字典
-            label: 标签（用于实例评估）
-                
+            input_data: Input data, can be:
+                - torch.Tensor: Single-modal features [N, D]
+                - Dict[str, torch.Tensor]: Multimodal data dictionary
+            label: Labels (for instance evaluation)
+
         Returns:
-            Dict[str, Any]: 统一格式的结果字典
+            Dict[str, Any]: Unified format result dictionary
         """
         input_data, modalities_used_in_model = self._process_input_data(input_data)
-        # 初始化结果字典
+        # Initialize result dictionary
         result_kwargs = {}
         
-        # 初始化融合特征
+        # Initialize fused features
         features_dict = {}
         for channel in modalities_used_in_model:
             if channel == 'wsi=features':
@@ -260,7 +260,7 @@ class SVDGateRandomClam(ClamMLP):
         Y_prob = F.softmax(logits, dim = 1)
         Y_hat = torch.topk(logits, 1, dim = 1)[1]
         
-        # 更新结果字典
+        # Update result dictionary
         result_kwargs['Y_prob'] = Y_prob
         result_kwargs['Y_hat'] = Y_hat
         
@@ -268,7 +268,7 @@ class SVDGateRandomClam(ClamMLP):
 
     def loss_fn(self, logits: torch.Tensor, labels: torch.Tensor, result: Dict[str, float]) -> torch.Tensor:
         """
-        计算损失
+        Calculate loss
         """
         total_loss = 0.0
         for key, value in result.items():
@@ -282,7 +282,7 @@ class SVDGateRandomClam(ClamMLP):
 
     def group_loss_fn(self, result: Dict[str, float]) -> torch.Tensor:
         """
-        计算组损失
+        Calculate group loss
         """
         if not self.enable_svd:
             return 0.0
@@ -304,7 +304,7 @@ class SVDGateRandomClam(ClamMLP):
 
     def verbose_items(self, result: Dict[str, float]) -> List[Tuple[str, float]]:
         """
-        打印结果
+        Print results
         """
         verbose_list = []
         for key, value in result.items():

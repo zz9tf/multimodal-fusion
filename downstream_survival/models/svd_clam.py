@@ -7,17 +7,17 @@ from typing import Dict, Optional
 from .alignment_model import MultiModalAlignmentModel
 
 class Attn_Net(nn.Module):
-    """注意力网络（无门控）"""
+    """Attention network (without gating)"""
     
     def __init__(self, L=1024, D=256, dropout=False, n_classes=1):
         """
-        初始化注意力网络
-        
+        Initialize attention network
+
         Args:
-            L: 输入特征维度
-            D: 隐藏层维度
-            dropout: 是否使用dropout
-            n_classes: 输出类别数
+            L: Input feature dimension
+            D: Hidden layer dimension
+            dropout: Whether to use dropout
+            n_classes: Number of output classes
         """
         super(Attn_Net, self).__init__()
         self.module = [
@@ -31,29 +31,29 @@ class Attn_Net(nn.Module):
     
     def forward(self, x):
         """
-        前向传播
-        
+        Forward propagation
+
         Args:
-            x: 输入特征张量
-            
+            x: Input feature tensor
+
         Returns:
-            attention_weights: 注意力权重
-            x: 原始输入特征
+            attention_weights: Attention weights
+            x: Original input features
         """
         return self.module(x), x
 
 class Attn_Net_Gated(nn.Module):
-    """门控注意力网络"""
+    """Gated attention network"""
     
     def __init__(self, L=1024, D=256, dropout=False, n_classes=1):
         """
-        初始化门控注意力网络
-        
+        Initialize gated attention network
+
         Args:
-            L: 输入特征维度
-            D: 隐藏层维度
-            dropout: 是否使用dropout
-            n_classes: 输出类别数
+            L: Input feature dimension
+            D: Hidden layer dimension
+            dropout: Whether to use dropout
+            n_classes: Number of output classes
         """
         super(Attn_Net_Gated, self).__init__()
         self.attention_a = [
@@ -74,14 +74,14 @@ class Attn_Net_Gated(nn.Module):
 
     def forward(self, x):
         """
-        门控注意力前向传播
-        
+        Gated attention forward propagation
+
         Args:
-            x: 输入特征张量
-            
+            x: Input feature tensor
+
         Returns:
-            attention_weights: 门控注意力权重
-            x: 原始输入特征
+            attention_weights: Gated attention weights
+            x: Original input features
         """
         a = self.attention_a(x)
         b = self.attention_b(x)
@@ -91,33 +91,33 @@ class Attn_Net_Gated(nn.Module):
 
 class SVD_CLAM(BaseModel):
     """
-    SVD-CLAM 模型：结合SVD对齐和CLAM注意力的多模态生存预测模型
-    
-    配置参数：
-    - n_classes: 类别数量
-    - input_dim: 输入维度
-    - model_size: 模型大小 ('small', 'big', '128*64', '64*32', '32*16', '16*8', '8*4', '4*2', '2*1')
-    - dropout: dropout率
-    - gate: 是否使用门控注意力
-    - inst_number: 正负样本采样数量
-    - instance_loss_fn: 实例损失函数
-    - subtyping: 是否为子类型问题
-    - alignment_layer_num: 对齐层数量
-    - alignment_channels: 对齐通道列表
-    - tau1, tau2: 温度参数
-    - lambda1, lambda2: 损失权重参数
+    SVD-CLAM model: Multimodal survival prediction model combining SVD alignment and CLAM attention
+
+    Configuration parameters:
+    - n_classes: Number of classes
+    - input_dim: Input dimension
+    - model_size: Model size ('small', 'big', '128*64', '64*32', '32*16', '16*8', '8*4', '4*2', '2*1')
+    - dropout: Dropout rate
+    - gate: Whether to use gated attention
+    - inst_number: Number of positive/negative samples
+    - instance_loss_fn: Instance loss function
+    - subtyping: Whether it's a subtyping problem
+    - alignment_layer_num: Number of alignment layers
+    - alignment_channels: Alignment channel list
+    - tau1, tau2: Temperature parameters
+    - lambda1, lambda2: Loss weight parameters
     """
     
     def __init__(self, config):
         """
-        初始化SVD-CLAM模型
-        
+        Initialize SVD-CLAM model
+
         Args:
-            config: 模型配置字典，包含所有必要的参数
+            config: Model configuration dictionary, containing all necessary parameters
         """
         super().__init__(config)
         
-        # 验证配置完整性
+        # Validate configuration completeness
         self._validate_config(config)
         
         # 模型大小配置

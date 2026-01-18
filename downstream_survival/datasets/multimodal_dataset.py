@@ -22,9 +22,9 @@ try:
     ALIGNMENT_AVAILABLE = True
 except ImportError:
     ALIGNMENT_AVAILABLE = False
-    print("⚠️ 对齐模型不可用，将使用标准模式")
+    print("⚠️ Alignment model not available, will use standard mode")
 
-# 全局文件锁字典，用于处理HDF5并发访问
+# Global file lock dictionary for handling HDF5 concurrent access
 _file_locks = {}
 _lock_dict_lock = threading.Lock()
 
@@ -79,7 +79,7 @@ class MultimodalDataset(Dataset):
         required_columns = ['patient_id', 'case_id', 'label', 'h5_file_path']
         missing_columns = [col for col in required_columns if col not in self.data_df.columns]
         if missing_columns:
-            raise ValueError(f"CSV文件缺少必需列: {missing_columns}")
+            raise ValueError(f"CSV file missing required columns: {missing_columns}")
         
         # Build mappings
         self.case_to_file = {}
@@ -89,7 +89,7 @@ class MultimodalDataset(Dataset):
             file_path = row['h5_file_path']
             label = row['label']
             
-            # 处理路径：如果提供了 data_root_dir，则拼接路径
+            # Handle path: concatenate path if data_root_dir is provided
             file_path = os.path.join(self.data_root_dir, file_path)
             
             self.case_to_file[case_id] = file_path
@@ -102,7 +102,7 @@ class MultimodalDataset(Dataset):
         if alignment_model_path and os.path.exists(alignment_model_path) and ALIGNMENT_AVAILABLE:
             self._load_alignment_model(alignment_model_path)
             if print_info:
-                print(f"✅ 数据集加载对齐模型: {alignment_model_path}")
+                print(f"✅ Dataset loaded alignment model: {alignment_model_path}")
         
         # Validate channels and align_channels
         self._validate_channels()
@@ -339,11 +339,58 @@ class MultimodalDataset(Dataset):
             with h5py.File(file_path, 'r') as hdf5_file:
                 channel_data: Dict[str, torch.Tensor] = {}
                 for channel in self.channels:
-                    data = self._read_with_retry(hdf5_file, channel, max_retries=3)
-                    if data is not None:
-                        channel_data[channel] = torch.from_numpy(self._standardize_array(data))
+                    # Check if this is a hypergraph channel
+                    if channel.startswith('hypergraph='):
+                        # Load preprocessed hypergraph data
+                        hypergraph_key = channel.replace('hypergraph=', '')
+                        if 'hypergraph' in hdf5_file:
+                            hg_group = hdf5_file['hypergraph']
+                            if hypergraph_key == 'wsi_super_features':
+                                if 'wsi_super' in hg_group and 'features' in hg_group['wsi_super']:
+                                    data = hg_group['wsi_super']['features'][:]
+                                    channel_data[channel] = torch.from_numpy(self._standardize_array(data))
+                                else:
+                                    # Fallback: use original WSI features if hypergraph not available
+                                    data = self._read_with_retry(hdf5_file, 'wsi=features', max_retries=3)
+                                    if data is not None:
+                                        channel_data[channel] = torch.from_numpy(self._standardize_array(data))
+                                    else:
+                                        assert False, f"⚠️ Failed to read hypergraph wsi_super_features and fallback wsi=features"
+                            elif hypergraph_key == 'tma_features':
+                                if 'tma' in hg_group and 'features' in hg_group['tma']:
+                                    data = hg_group['tma']['features'][:]
+                                    channel_data[channel] = torch.from_numpy(self._standardize_array(data))
+                                else:
+                                    # Fallback: use original TMA features
+                                    data = self._read_with_retry(hdf5_file, 'tma=features', max_retries=3)
+                                    if data is not None:
+                                        channel_data[channel] = torch.from_numpy(self._standardize_array(data))
+                                    else:
+                                        assert False, f"⚠️ Failed to read hypergraph tma_features and fallback tma=features"
+                            elif hypergraph_key == 'edge_index':
+                                if 'edge_index' in hg_group:
+                                    data = hg_group['edge_index'][:]
+                                    channel_data[channel] = torch.from_numpy(data).long()
+                                else:
+                                    assert False, f"⚠️ Failed to read hypergraph edge_index"
+                            elif hypergraph_key == 'edge_weights':
+                                if 'edge_weights' in hg_group:
+                                    data = hg_group['edge_weights'][:]
+                                    channel_data[channel] = torch.from_numpy(self._standardize_array(data))
+                                else:
+                                    # Edge weights are optional
+                                    pass
+                            else:
+                                assert False, f"⚠️ Unknown hypergraph key: {hypergraph_key}"
+                        else:
+                            assert False, f"⚠️ Hypergraph data not found in h5 file"
                     else:
-                        assert False, f"⚠️ Failed to read channel {channel}"
+                        # Regular channel reading
+                        data = self._read_with_retry(hdf5_file, channel, max_retries=3)
+                        if data is not None:
+                            channel_data[channel] = torch.from_numpy(self._standardize_array(data))
+                        else:
+                            assert False, f"⚠️ Failed to read channel {channel}"
 
         # Optional alignment
         if self.alignment_model is not None and self.align_channels:
@@ -437,18 +484,18 @@ class MultimodalDataset(Dataset):
                 elif len(channel) == 3:
                     data = hdf5_file[channel[0]][channel[1]][channel[2]][:]
                 else:
-                    assert False, f"⚠️ Channel {channel} 格式错误"
+                    assert False, f"⚠️ Channel {channel} format error"
                 return data
                 
             except Exception as e:
                 if attempt < max_retries:
-                    # 计算退避时间：指数退避 + 随机抖动
+                    # Calculate backoff time: exponential backoff + random jitter
                     base_delay = 0.1 * (2 ** attempt)  # 0.1s, 0.2s, 0.4s
-                    jitter = random.uniform(0, 0.1)  # 0-0.1s随机抖动
+                    jitter = random.uniform(0, 0.1)  # 0-0.1s random jitter
                     delay = base_delay + jitter
                     
-                    print(f"⚠️ 读取 {channel} 失败 (尝试 {attempt + 1}/{max_retries + 1}): {e}")
-                    print(f"🔄 等待 {delay:.2f}s 后重试...")
+                    print(f"⚠️ Failed to read {channel} (attempt {attempt + 1}/{max_retries + 1}): {e}")
+                    print(f"🔄 Waiting {delay:.2f}s before retry...")
                     time.sleep(delay)
                 else:
                     # Final failure

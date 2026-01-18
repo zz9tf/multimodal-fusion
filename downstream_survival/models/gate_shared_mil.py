@@ -14,16 +14,16 @@ class PositiveSwish(nn.Module):
 
 class GateSharedMIL(BaseModel):
     """
-    SharedGatedGTECLAM 模型
-    
-    配置参数：
-    - n_classes: 类别数量
-    - input_dim: 输入维度
-    - model_size: 模型大小 ('small', 'big', '128*64', '64*32', '32*16', '16*8', '8*4', '4*2', '2*1')
-    - dropout: dropout率
-    - inst_number: 正负样本采样数量
-    - instance_loss_fn: 实例损失函数
-    - subtyping: 是否为子类型问题
+    SharedGatedGTECLAM model
+
+    Configuration parameters:
+    - n_classes: Number of classes
+    - input_dim: Input dimension
+    - model_size: Model size ('small', 'big', '128*64', '64*32', '32*16', '16*8', '8*4', '4*2', '2*1')
+    - dropout: Dropout rate
+    - inst_number: Number of positive/negative samples
+    - instance_loss_fn: Instance loss function
+    - subtyping: Whether it's a subtyping problem
     """
     
     def __init__(self, config):
@@ -89,42 +89,42 @@ class GateSharedMIL(BaseModel):
     
     def _validate_config(self, config):
         """
-        验证配置
+        Validate configuration
         """
         if 'confidence_weight' not in config:
-            raise ValueError("配置中缺少 'confidence_weight' 参数")
+            raise ValueError("Configuration missing 'confidence_weight' parameter")
         if 'feature_weight_weight' not in config:
-            raise ValueError("配置中缺少 'feature_weight_weight' 参数")
+            raise ValueError("Configuration missing 'feature_weight_weight' parameter")
         if 'channels_used_in_model' not in config:
-            raise ValueError("配置中缺少 'channels_used_in_model' 参数")
+            raise ValueError("Configuration missing 'channels_used_in_model' parameter")
         if 'model_size' not in config:
-            raise ValueError("配置中缺少 'model_size' 参数")
+            raise ValueError("Configuration missing 'model_size' parameter")
         
     def _process_input_data(self, input_data: Dict[str, torch.Tensor]) -> torch.Tensor:
         """
-        处理输入数据，将多模态数据转换为统一的张量格式
+        Process input data, convert multimodal data to unified tensor format
         """
         input_features = {channel: input_data[channel].squeeze(0) for channel in self.channels_used_in_model if not channel == 'wsi=reconstructed'} # [channel, simple_number, simple_dim]
         return input_features
     
     def forward(self, input_data, label):
         """
-        统一的前向传播接口
-        
+        Unified forward propagation interface
+
         Args:
-            input_data: 输入数据，可以是：
-                - torch.Tensor: 单模态特征 [N, D]
-                - Dict[str, torch.Tensor]: 多模态数据字典
-            **kwargs: 其他参数，支持：
-                - label: 标签（用于实例评估）
-                - instance_eval: 是否进行实例评估
-                - return_features: 是否返回特征
-                - attention_only: 是否只返回注意力权重
-                
+            input_data: Input data, can be:
+                - torch.Tensor: Single-modal features [N, D]
+                - Dict[str, torch.Tensor]: Multimodal data dictionary
+            **kwargs: Other parameters, support:
+                - label: Labels (for instance evaluation)
+                - instance_eval: Whether to perform instance evaluation
+                - return_features: Whether to return features
+                - attention_only: Whether to return only attention weights
+
         Returns:
-            Dict[str, Any]: 统一格式的结果字典
+            Dict[str, Any]: Unified format result dictionary
         """
-        # 处理输入数据（支持多模态）
+        # Process input data (support multimodal)
         input_features = self._process_input_data(input_data)
         
         result_kwargs = dict()
@@ -183,10 +183,10 @@ class GateSharedMIL(BaseModel):
         
     def verbose_items(self, result: Dict[str, float]) -> list:
         """
-        返回可打印的指标
-        
+        Return printable metrics
+
         Returns:
-            list: 包含 (key, value) 元组的列表，用于训练日志打印
+            list: List containing (key, value) tuples for training log printing
         """
         return [
             ('base', result['base_loss']),
@@ -197,7 +197,7 @@ class GateSharedMIL(BaseModel):
     
     def loss_fn(self, logits: torch.Tensor, labels: torch.Tensor, result: Dict[str, float]) -> torch.Tensor:
         """
-        计算损失
+        Calculate loss
         """
         result['base_loss'] = self.base_loss_fn(logits, labels)
         result['confidence_total_loss'] = (result['confidence_loss'] + result['confidence_logits_loss'])*self.confidence_weight

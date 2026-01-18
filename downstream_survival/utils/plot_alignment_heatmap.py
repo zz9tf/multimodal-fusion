@@ -125,17 +125,17 @@ def plot_sample_heatmap(
     
     # 设置绘图风格（适合文献）
     plt.rcParams.update({
-        'font.size': 11,
+        'font.size': 9,
         'font.family': 'serif',
         'font.serif': ['Times New Roman', 'DejaVu Serif'],
         'figure.dpi': 300,
         'axes.linewidth': 1.2,
-        'axes.labelsize': 12,
-        'axes.titlesize': 13,
-        'xtick.labelsize': 10,
-        'ytick.labelsize': 11,
-        'legend.fontsize': 10,
-        'figure.titlesize': 14,
+        'axes.labelsize': 10,
+        'axes.titlesize': 11,
+        'xtick.labelsize': 8,
+        'ytick.labelsize': 9,
+        'legend.fontsize': 8,
+        'figure.titlesize': 12,
     })
     
     # 创建图形（调整尺寸适合文献）
@@ -172,7 +172,7 @@ def plot_sample_heatmap(
             label = mod.replace('=', ': ').replace('/', '_').replace('_', ' ').title()
         modality_labels.append(label)
     
-    ax.set_yticklabels(modality_labels, fontsize=16, fontweight='normal', 
+    ax.set_yticklabels(modality_labels, fontsize=12, fontweight='normal', 
                       rotation=0, ha='right', va='center')
     
     # 添加分隔线（中间分隔对齐前后）
@@ -200,10 +200,10 @@ def plot_sample_heatmap(
     # 在图形顶部添加文本标注（Before/After SVD），与热力图对齐
     # 左边：Before SVD
     fig.text(left_center, 0.98, 'Before SVD', ha='center', va='top', 
-            fontsize=20, fontweight='bold', color='black')
+            fontsize=15, fontweight='bold', color='black')
     # 右边：After SVD
     fig.text(right_center, 0.98, 'After SVD', ha='center', va='top',
-            fontsize=20, fontweight='bold', color='black')
+            fontsize=15, fontweight='bold', color='black')
     
     # 在图形底部添加标题（使用 patient id，如果没有则使用 sample_idx），居中
     if patient_id is not None:
@@ -211,7 +211,7 @@ def plot_sample_heatmap(
     else:
         title = f'Patient {sample_idx}'
     fig.text(ax_center, -0.02, title, ha='center', va='bottom', 
-            fontsize=24, fontweight='bold', color='black')
+            fontsize=16, fontweight='bold', color='black')
     
     # 保存图片
     os.makedirs(os.path.dirname(output_path), exist_ok=True)

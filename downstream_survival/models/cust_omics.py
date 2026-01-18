@@ -10,9 +10,9 @@ from torch.nn import Sequential, Linear, BatchNorm1d, ReLU
 
 class HypergraphNetwork(nn.Module):
     """
-    Hypergraph网络，用于处理WSI和TMA的embeddings。
-    
-    参考Multimodal-CustOmics的实现，使用HypergraphConv进行特征聚合。
+    Hypergraph network for processing WSI and TMA embeddings.
+
+    Refer to Multimodal-CustOmics implementation, using HypergraphConv for feature aggregation.
     """
     
     def __init__(
@@ -24,34 +24,34 @@ class HypergraphNetwork(nn.Module):
         use_attention: bool = False
     ):
         """
-        初始化Hypergraph网络。
+        Initialize Hypergraph network.
 
         Parameters
         ----------
         input_dim : int
-            输入特征维度
+            Input feature dimension
         hidden_dims : List[int]
-            隐藏层维度列表
+            Hidden layer dimension list
         output_dim : int
-            输出特征维度
+            Output feature dimension
         dropout : float, optional
-            Dropout率，默认0.2
+            Dropout rate, default 0.2
         use_attention : bool, optional
-            是否在HypergraphConv中使用attention，默认False
+            Whether to use attention in HypergraphConv, default False
         """
         super(HypergraphNetwork, self).__init__()
         self.dropout = dropout
         self.hidden_dims = hidden_dims
         self.num_layers = len(hidden_dims)
         
-        # 第一层：特征变换
+        # First layer: feature transformation
         self.first_h = Sequential(
             Linear(input_dim, hidden_dims[0]),
             BatchNorm1d(hidden_dims[0]),
             ReLU()
         )
         
-        # Hypergraph卷积层
+        # Hypergraph convolution layers
         self.convs = nn.ModuleList()
         for i in range(1, self.num_layers):
             self.convs.append(
@@ -65,7 +65,7 @@ class HypergraphNetwork(nn.Module):
         # 输出层
         self.output_layer = Linear(hidden_dims[-1], output_dim)
         
-        # 注意力池化（用于聚合节点特征为graph-level token）
+        # Attention pooling (for aggregating node features to graph-level token)
         self.attention_pool = GlobalAttention(
             gate_nn=Sequential(
                 Linear(hidden_dims[-1], hidden_dims[-1] // 2),
@@ -76,27 +76,27 @@ class HypergraphNetwork(nn.Module):
     
     def forward(self, x: torch.Tensor, edge_index: torch.Tensor, batch: torch.Tensor) -> torch.Tensor:
         """
-        前向传播。
+        Forward propagation.
 
         Parameters
         ----------
         x : torch.Tensor
-            节点特征，形状 [N, input_dim]
+            Node features, shape [N, input_dim]
         edge_index : torch.Tensor
-            Hypergraph边索引，形状 [2, E]
+            Hypergraph edge indices, shape [2, E]
         batch : torch.Tensor
-            批次索引，形状 [N]
+            Batch indices, shape [N]
 
         Returns
         -------
         torch.Tensor
-            Graph-level token，形状 [batch_size, output_dim]
+            Graph-level token, shape [batch_size, output_dim]
         """
-        # 第一层特征变换
+        # First layer feature transformation
         x = self.first_h(x)
         x = F.dropout(x, p=self.dropout, training=self.training)
         
-        # Hypergraph卷积层
+        # Hypergraph convolution layers
         for conv in self.convs:
             x = conv(x, edge_index)
             x = F.dropout(x, p=self.dropout, training=self.training)
@@ -104,7 +104,7 @@ class HypergraphNetwork(nn.Module):
         # 输出层
         x = self.output_layer(x)
         
-        # 注意力池化：将节点特征聚合为graph-level token
+        # Attention pooling: aggregate node features to graph-level token
         graph_token = self.attention_pool(x, batch)  # [batch_size, output_dim]
         
         return graph_token
@@ -112,52 +112,52 @@ class HypergraphNetwork(nn.Module):
 
 class CustOmics(ClamMLP):
     """
-    CustOmics模型：基于Hypergraph的多模态融合模型。
-    
-    设计思路：
-    1. 将WSI和TMA的embeddings拼接，建立hypergraph，生成hypergraph token
-    2. 其他模态经过transfer layer，得到n个tokens
-    3. 使用attention MoE聚合hypergraph token和其他模态tokens
-    
-    配置参数：
-    - n_classes: 类别数量
-    - input_dim: 输入维度
-    - model_size: 模型大小
-    - dropout: dropout率
-    - hypergraph_hidden_dims: hypergraph网络的隐藏层维度列表
-    - hypergraph_dropout: hypergraph网络的dropout率
+    CustOmics model: Hypergraph-based multimodal fusion model.
+
+    Design concept:
+    1. Concatenate WSI and TMA embeddings, establish hypergraph, generate hypergraph token
+    2. Other modalities go through transfer layer to get n tokens
+    3. Use attention MoE to aggregate hypergraph token and other modality tokens
+
+    Configuration parameters:
+    - n_classes: Number of classes
+    - input_dim: Input dimension
+    - model_size: Model size
+    - dropout: Dropout rate
+    - hypergraph_hidden_dims: Hypergraph network hidden layer dimension list
+    - hypergraph_dropout: Hypergraph network dropout rate
     """
 
     def __init__(self, config):
         """
-        初始化CustOmics模型，并构建hypergraph网络和融合层。
+        Initialize CustOmics model and build hypergraph network and fusion layers.
 
         Parameters
         ----------
         config : Dict
-            模型配置字典，包含父类 `ClamMLP` 所需的所有参数。
-            额外支持：
-            - hypergraph_hidden_dims (List[int], optional): hypergraph隐藏层维度，默认[256, 256]
-            - hypergraph_dropout (float, optional): hypergraph dropout率，默认0.2
-            - modality_dropout (float, optional): 模态dropout率，默认0.0
+            Model configuration dictionary, containing all parameters required by parent class `ClamMLP`.
+            Additional support:
+            - hypergraph_hidden_dims (List[int], optional): hypergraph hidden layer dimensions, default [256, 256]
+            - hypergraph_dropout (float, optional): hypergraph dropout rate, default 0.2
+            - modality_dropout (float, optional): modality dropout rate, default 0.0
         """
         super().__init__(config)
 
-        # 记录当前模型实际使用到的模态
+        # Record the modalities actually used by the current model
         self.modality_order = sorted(list(self.used_modality))
         
-        # 模态dropout参数
+        # Modality dropout parameter
         self.modality_dropout = config.get('modality_dropout', 0.0)
         if not 0.0 <= self.modality_dropout <= 1.0:
-            raise ValueError(f"modality_dropout必须在[0.0, 1.0]范围内，当前: {self.modality_dropout}")
+            raise ValueError(f"modality_dropout must be in [0.0, 1.0] range, current: {self.modality_dropout}")
         
-        # Hypergraph网络配置
+        # Hypergraph network configuration
         hypergraph_hidden_dims = config.get('hypergraph_hidden_dims', [256, 256])
         hypergraph_dropout = config.get('hypergraph_dropout', 0.2)
         
-        # 初始化hypergraph网络（用于处理WSI和TMA）
-        # 输入维度：embeddings的维度（通常是input_dim或output_dim）
-        # 这里假设embeddings已经对齐到output_dim
+        # Initialize hypergraph network (for processing WSI and TMA)
+        # Input dimension: dimension of embeddings (usually input_dim or output_dim)
+        # Here we assume embeddings are already aligned to output_dim
         self.hypergraph_net = HypergraphNetwork(
             input_dim=self.output_dim,
             hidden_dims=hypergraph_hidden_dims,
@@ -232,17 +232,23 @@ class CustOmics(ClamMLP):
         执行前向传播，使用hypergraph处理WSI/TMA，然后与其他模态进行MoE融合。
 
         融合流程：
-        1. 提取WSI和TMA的embeddings，拼接后构建hypergraph
-        2. 通过hypergraph网络得到hypergraph token
-        3. 其他模态经过transfer layer得到tokens
-        4. 使用attention MoE聚合所有tokens
-        5. 进行最终分类预测
+        1. 优先使用预处理好的hypergraph数据（如果存在）
+        2. 否则提取WSI和TMA的embeddings，拼接后构建hypergraph
+        3. 通过hypergraph网络得到hypergraph token
+        4. 其他模态经过transfer layer得到tokens
+        5. 使用attention MoE聚合所有tokens
+        6. 进行最终分类预测
 
         Parameters
         ----------
         input_data : torch.Tensor | Dict[str, torch.Tensor]
             - 若为 `torch.Tensor`：单模态特征，形状 [N, D]
             - 若为 `Dict[str, torch.Tensor]`：多模态数据字典，key 为模态名称
+            支持预处理好的hypergraph数据：
+            - 'hypergraph=wsi_super_features': WSI super patch features
+            - 'hypergraph=tma_features': TMA features
+            - 'hypergraph=edge_index': Hypergraph edge indices
+            - 'hypergraph=edge_weights': Edge weights (optional)
         label : torch.Tensor
             标签张量，用于实例评估，形状通常为 [1]
 
@@ -258,56 +264,109 @@ class CustOmics(ClamMLP):
         result_kwargs = {}
         
         # ========== 步骤1: 处理WSI和TMA，构建hypergraph ==========
-        image_embeddings = []  # 存储WSI和TMA的embeddings
+        # 优先检查是否有预处理好的hypergraph数据
+        use_preprocessed_hypergraph = (
+            'hypergraph=wsi_super_features' in input_data and
+            'hypergraph=edge_index' in input_data
+        )
         
-        if 'wsi=features' in modalities_used_in_model and 'wsi=features' in input_data:
-            wsi_emb = input_data['wsi=features']  # [N_wsi, D] 或 [1, N_wsi, D] 或 [N_wsi]
-            # 处理不同维度
-            if wsi_emb.dim() == 1:
-                wsi_emb = wsi_emb.unsqueeze(0)  # [1, D]
-            elif wsi_emb.dim() == 3:
-                wsi_emb = wsi_emb.squeeze(0)  # [N_wsi, D]
-            # wsi_emb现在是 [N_wsi, D]
-            image_embeddings.append(wsi_emb)
-        
-        if 'tma=features' in modalities_used_in_model and 'tma=features' in input_data:
-            tma_emb = input_data['tma=features']  # [N_tma, D] 或 [1, N_tma, D] 或 [N_tma]
-            # 处理不同维度
-            if tma_emb.dim() == 1:
-                tma_emb = tma_emb.unsqueeze(0)  # [1, D]
-            elif tma_emb.dim() == 3:
-                tma_emb = tma_emb.squeeze(0)  # [N_tma, D]
-            # tma_emb现在是 [N_tma, D]
-            image_embeddings.append(tma_emb)
-        
-        # 拼接WSI和TMA embeddings
-        if len(image_embeddings) > 0:
-            # 确保所有embeddings维度一致
-            # 如果维度不一致，使用transfer layer对齐
-            aligned_embeddings = []
-            for emb in image_embeddings:
-                if emb.shape[1] != self.output_dim:
-                    # 需要对齐维度
-                    if 'image_transfer' not in self.__dict__:
-                        self.image_transfer = nn.Linear(emb.shape[1], self.output_dim).to(self.device)
-                    emb = self.image_transfer(emb)
-                aligned_embeddings.append(emb)
+        if use_preprocessed_hypergraph:
+            # 使用预处理好的hypergraph数据
+            wsi_super_features = input_data['hypergraph=wsi_super_features']  # [N_wsi_super, D]
+            edge_index = input_data['hypergraph=edge_index']  # [2, E]
             
-            # 拼接所有image embeddings
-            hypergraph_nodes = torch.cat(aligned_embeddings, dim=0)  # [N_total, output_dim]
-            num_nodes = hypergraph_nodes.shape[0]
+            # 处理维度
+            if wsi_super_features.dim() == 1:
+                wsi_super_features = wsi_super_features.unsqueeze(0)
+            elif wsi_super_features.dim() == 3:
+                wsi_super_features = wsi_super_features.squeeze(0)
             
-            # 构建hypergraph edge_index
-            edge_index = self._build_hypergraph_edge_index(num_nodes, method='fully_connected')
+            # 确保维度对齐
+            if wsi_super_features.shape[1] != self.output_dim:
+                if 'hypergraph_transfer' not in self.__dict__:
+                    self.hypergraph_transfer = nn.Linear(wsi_super_features.shape[1], self.output_dim).to(self.device)
+                wsi_super_features = self.hypergraph_transfer(wsi_super_features)
+            
+            # 如果有TMA features，也加入hypergraph nodes
+            if 'hypergraph=tma_features' in input_data:
+                tma_features = input_data['hypergraph=tma_features']
+                if tma_features.dim() == 1:
+                    tma_features = tma_features.unsqueeze(0)
+                elif tma_features.dim() == 3:
+                    tma_features = tma_features.squeeze(0)
+                
+                # 对齐维度
+                if tma_features.shape[1] != self.output_dim:
+                    if 'hypergraph_tma_transfer' not in self.__dict__:
+                        self.hypergraph_tma_transfer = nn.Linear(tma_features.shape[1], self.output_dim).to(self.device)
+                    tma_features = self.hypergraph_tma_transfer(tma_features)
+                
+                # 拼接WSI super patches和TMA
+                hypergraph_nodes = torch.cat([wsi_super_features, tma_features], dim=0)
+            else:
+                hypergraph_nodes = wsi_super_features
+            
+            # 确保edge_index在正确的device上
+            edge_index = edge_index.to(self.device)
             
             # 创建batch索引（所有节点属于同一个graph）
+            num_nodes = hypergraph_nodes.shape[0]
             batch = torch.zeros(num_nodes, dtype=torch.long, device=self.device)
             
             # 通过hypergraph网络得到graph-level token
             hypergraph_token = self.hypergraph_net(hypergraph_nodes, edge_index, batch)  # [1, output_dim]
         else:
-            # 如果没有WSI和TMA，创建零向量
-            hypergraph_token = torch.zeros(1, self.output_dim, device=self.device)
+            # 回退到原来的方法：从原始WSI/TMA features构建hypergraph
+            image_embeddings = []  # 存储WSI和TMA的embeddings
+            
+            if 'wsi=features' in modalities_used_in_model and 'wsi=features' in input_data:
+                wsi_emb = input_data['wsi=features']  # [N_wsi, D] 或 [1, N_wsi, D] 或 [N_wsi]
+                # 处理不同维度
+                if wsi_emb.dim() == 1:
+                    wsi_emb = wsi_emb.unsqueeze(0)  # [1, D]
+                elif wsi_emb.dim() == 3:
+                    wsi_emb = wsi_emb.squeeze(0)  # [N_wsi, D]
+                # wsi_emb现在是 [N_wsi, D]
+                image_embeddings.append(wsi_emb)
+            
+            if 'tma=features' in modalities_used_in_model and 'tma=features' in input_data:
+                tma_emb = input_data['tma=features']  # [N_tma, D] 或 [1, N_tma, D] 或 [N_tma]
+                # 处理不同维度
+                if tma_emb.dim() == 1:
+                    tma_emb = tma_emb.unsqueeze(0)  # [1, D]
+                elif tma_emb.dim() == 3:
+                    tma_emb = tma_emb.squeeze(0)  # [N_tma, D]
+                # tma_emb现在是 [N_tma, D]
+                image_embeddings.append(tma_emb)
+            
+            # 拼接WSI和TMA embeddings
+            if len(image_embeddings) > 0:
+                # 确保所有embeddings维度一致
+                # 如果维度不一致，使用transfer layer对齐
+                aligned_embeddings = []
+                for emb in image_embeddings:
+                    if emb.shape[1] != self.output_dim:
+                        # 需要对齐维度
+                        if 'image_transfer' not in self.__dict__:
+                            self.image_transfer = nn.Linear(emb.shape[1], self.output_dim).to(self.device)
+                        emb = self.image_transfer(emb)
+                    aligned_embeddings.append(emb)
+                
+                # 拼接所有image embeddings
+                hypergraph_nodes = torch.cat(aligned_embeddings, dim=0)  # [N_total, output_dim]
+                num_nodes = hypergraph_nodes.shape[0]
+                
+                # 构建hypergraph edge_index
+                edge_index = self._build_hypergraph_edge_index(num_nodes, method='fully_connected')
+                
+                # 创建batch索引（所有节点属于同一个graph）
+                batch = torch.zeros(num_nodes, dtype=torch.long, device=self.device)
+                
+                # 通过hypergraph网络得到graph-level token
+                hypergraph_token = self.hypergraph_net(hypergraph_nodes, edge_index, batch)  # [1, output_dim]
+            else:
+                # 如果没有WSI和TMA，创建零向量
+                hypergraph_token = torch.zeros(1, self.output_dim, device=self.device)
         
         # ========== 步骤2: 处理其他模态，得到tokens ==========
         other_modality_tokens = []

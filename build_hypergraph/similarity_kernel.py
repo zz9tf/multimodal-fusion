@@ -212,10 +212,7 @@ def build_weighted_hypergraph(
     return edge_index, edge_weights
 
 def mean_pool_with_similarity(
-    features: torch.Tensor,
-    positions: torch.Tensor,
-    lambda_h: float = 1.0,
-    lambda_g: float = 1.0
+    features: torch.Tensor
 ) -> torch.Tensor:
     """
     Perform plain mean pooling of features without similarity weights.
@@ -229,12 +226,6 @@ def mean_pool_with_similarity(
     ----------
     features : torch.Tensor
         Feature embeddings, shape [N, D]
-    positions : torch.Tensor
-        Spatial coordinates, shape [N, 2] or [N, 3]
-    lambda_h : float, optional
-        Scaling parameter for morphological similarity, default 1.0
-    lambda_g : float, optional
-        Scaling parameter for spatial similarity, default 1.0
     
     Returns
     -------
@@ -287,7 +278,7 @@ def build_hypergraph_data(
         - 'edge_index': edge indices, shape [2, E]
         - 'edge_attr': edge weights (similarity scores), shape [E]
         - 'pos': node positions, shape [N, 2] or [N, 3]
-        - 'pooled_features': pooled features (if use_pooling=True), shape [N, D]
+        - 'pooled_feature': pooled feature (if use_pooling=True), shape [D]
     """
     if device is None:
         device = features.device
@@ -309,10 +300,8 @@ def build_hypergraph_data(
     
     # Apply mean pooling if requested
     if use_pooling:
-        pooled_features = mean_pool_with_similarity(
-            features, positions, lambda_h, lambda_g
-        )
-        result['pooled_features'] = pooled_features
+        pooled_feature = mean_pool_with_similarity(features)
+        result['pooled_feature'] = pooled_feature
     
     return result
 

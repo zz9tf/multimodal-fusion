@@ -1,7 +1,7 @@
 """
-模型工厂类
-根据配置创建相应的模型实例
-支持统一的模型接口和训练流程
+Model factory class
+Creates corresponding model instances based on configuration
+Supports unified model interface and training process
 """
 
 from .clam import CLAM
@@ -28,13 +28,13 @@ from typing import Dict, Any, Type
 
 class ModelFactory:
     """
-    模型工厂类
-    
-    支持创建统一接口的模型实例，便于统一训练流程
-    所有模型都继承自BaseModel并实现统一的forward接口
+    Model factory class
+
+    Supports creating model instances with unified interface for unified training process
+    All models inherit from BaseModel and implement unified forward interface
     """
     
-    # 模型类型映射
+    # Model type mapping
     MODEL_REGISTRY: Dict[str, Type[BaseModel]] = {
         'mil': MIL_fc,
         'clam': CLAM,
@@ -60,50 +60,50 @@ class ModelFactory:
     @staticmethod
     def create_model(config: Dict[str, Any]) -> BaseModel:
         """
-        根据配置创建模型实例
-        
+        Create model instance based on configuration
+
         Args:
-            config: 模型配置字典，必须包含 'model_type' 字段
-            
+            config: Model configuration dictionary, must contain 'model_type' field
+
         Returns:
-            BaseModel: 统一接口的模型实例
-            
+            BaseModel: Model instance with unified interface
+
         Raises:
-            ValueError: 配置错误时抛出
+            ValueError: Thrown when configuration error occurs
         """
         if 'model_type' not in config:
-            raise ValueError("配置中缺少 'model_type' 参数")
-        
+            raise ValueError("Missing 'model_type' parameter in configuration")
+
         model_type = config['model_type']
-        
-        # 验证模型类型
+
+        # Validate model type
         if model_type not in ModelFactory.MODEL_REGISTRY:
-            raise ValueError(f"不支持的模型类型: {model_type}，支持的类型: {sorted(ModelFactory.MODEL_REGISTRY.keys())}")
-        
+            raise ValueError(f"Unsupported model type: {model_type}, supported types: {sorted(ModelFactory.MODEL_REGISTRY.keys())}")
+
         model_class = ModelFactory.MODEL_REGISTRY[model_type]
-        
-        # 创建模型实例
+
+        # Create model instance
         try:
             model = model_class(config)
             return model
         except Exception as e:
-            raise ValueError(f"创建模型失败: {str(e)}")
+            raise ValueError(f"Failed to create model: {str(e)}")
     
     @staticmethod
     def create_model_with_validation(config: Dict[str, Any]) -> BaseModel:
         """
-        创建模型并进行配置验证
-        
+        Create model and perform configuration validation
+
         Args:
-            config: 模型配置字典
-            
+            config: Model configuration dictionary
+
         Returns:
-            BaseModel: 验证通过的模型实例
+            BaseModel: Model instance that passed validation
         """
-        # 验证配置
+        # Validate configuration
         ModelFactory.validate_model_config(config)
-        
-        # 创建模型
+
+        # Create model
         model = ModelFactory.create_model(config)
         
         return model
@@ -111,61 +111,61 @@ class ModelFactory:
     @staticmethod
     def get_supported_models() -> list:
         """
-        获取支持的模型类型列表
-        
+        Get list of supported model types
+
         Returns:
-            list: 支持的模型类型列表（按字母顺序排序）
+            list: List of supported model types (sorted alphabetically)
         """
         return sorted(ModelFactory.MODEL_REGISTRY.keys())
     
     @staticmethod
     def validate_model_config(config: Dict[str, Any]) -> bool:
         """
-        验证模型配置的完整性和正确性
-        
+        Validate model configuration completeness and correctness
+
         Args:
-            config: 模型配置字典
-            
+            config: Model configuration dictionary
+
         Returns:
-            bool: 验证通过返回True
-            
+            bool: Returns True if validation passes
+
         Raises:
-            ValueError: 配置验证失败时抛出
+            ValueError: Thrown when configuration validation fails
         """
         if 'model_type' not in config:
-            raise ValueError("配置中缺少 'model_type' 参数")
+            raise ValueError("Missing 'model_type' parameter in configuration")
         
         model_type = config['model_type']
         if model_type not in ModelFactory.MODEL_REGISTRY:
-            raise ValueError(f"不支持的模型类型: {model_type}，支持的类型: {ModelFactory.get_supported_models()}")
+            raise ValueError(f"Unsupported model type: {model_type}, supported types: {ModelFactory.get_supported_models()}")
         
-        # 根据模型类型验证特定参数
+        # Validate specific parameters based on model type
         required_params = ['n_classes', 'input_dim', 'dropout', 'base_loss_fn']
         missing_params = [param for param in required_params if param not in config]
         if missing_params:
-            raise ValueError(f"模型配置缺少必需参数: {missing_params}")
+            raise ValueError(f"Model configuration missing required parameters: {missing_params}")
         
-        # 验证参数值的合理性
+        # Validate parameter value rationality
         if config['n_classes'] < 2:
-            raise ValueError(f"类别数量必须 >= 2，当前: {config['n_classes']}")
+            raise ValueError(f"Number of classes must be >= 2, current: {config['n_classes']}")
         
         if config['input_dim'] <= 0:
-            raise ValueError(f"输入维度必须 > 0，当前: {config['input_dim']}")
+            raise ValueError(f"Input dimension must be > 0, current: {config['input_dim']}")
         
         if not 0 <= config['dropout'] <= 1:
-            raise ValueError(f"dropout率必须在[0,1]范围内，当前: {config['dropout']}")
+            raise ValueError(f"Dropout rate must be in [0,1] range, current: {config['dropout']}")
 
         return True
     
     @staticmethod
     def get_model_info(model: BaseModel) -> Dict[str, Any]:
         """
-        获取模型信息
+        Get model information
         
         Args:
-            model: 模型实例
+            model: Model instance
             
         Returns:
-            Dict[str, Any]: 模型信息字典
+            Dict[str, Any]: Model information dictionary
         """
         return model.get_model_info()

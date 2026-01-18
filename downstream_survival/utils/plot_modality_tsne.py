@@ -209,14 +209,14 @@ def plot_modality_tsne(
             ax1.annotate(f'P{patient_id}', 
                         xy=(point[0], point[1]),
                         xytext=(5, 5), textcoords='offset points',
-                        fontsize=7, alpha=0.8,
-                        bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.6, edgecolor='none'))
+                        fontsize=6, alpha=0.8,
+                        bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.6, edgecolor='none'))
     
-    ax1.set_title('(a) Original Features', fontsize=30, fontweight='bold', pad=10)
-    ax1.set_xlabel(xlabel, fontsize=26)
-    ax1.set_ylabel(ylabel, fontsize=26)
+    ax1.set_title('(a) Original Features', fontsize=18, fontweight='bold', pad=10)
+    ax1.set_xlabel(xlabel, fontsize=16)
+    ax1.set_ylabel(ylabel, fontsize=16)
     ax1.grid(True, alpha=0.3)
-    ax1.legend(handles=legend_handles, loc='upper right', fontsize=9, framealpha=0.9)
+    ax1.legend(handles=legend_handles, loc='upper right', fontsize=7, framealpha=0.9)
     
     # 绘制对齐后特征
     ax2 = axes[1]
@@ -235,14 +235,14 @@ def plot_modality_tsne(
             ax2.annotate(f'P{patient_id}', 
                         xy=(point[0], point[1]),
                         xytext=(5, 5), textcoords='offset points',
-                        fontsize=7, alpha=0.8,
-                        bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.6, edgecolor='none'))
+                        fontsize=6, alpha=0.8,
+                        bbox=dict(boxstyle='round,pad=0.2', facecolor='white', alpha=0.6, edgecolor='none'))
     
-    ax2.set_title('(b) Aligned Features', fontsize=30, fontweight='bold', pad=10)
-    ax2.set_xlabel(xlabel, fontsize=26)
-    ax2.set_ylabel(ylabel, fontsize=26)
+    ax2.set_title('(b) Aligned Features', fontsize=18, fontweight='bold', pad=10)
+    ax2.set_xlabel(xlabel, fontsize=16)
+    ax2.set_ylabel(ylabel, fontsize=16)
     ax2.grid(True, alpha=0.3)
-    ax2.legend(handles=legend_handles, loc='upper right', fontsize=9, framealpha=0.9)
+    ax2.legend(handles=legend_handles, loc='upper right', fontsize=7, framealpha=0.9)
     
     plt.tight_layout()
     

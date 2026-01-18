@@ -7,27 +7,27 @@ from typing import Dict, List, Tuple
 
 class PS3(ClamMLP):
     """
-    PS3模型，使用 Cross Attention 机制进行多模态融合
-    
-    配置参数：
-    - n_classes: 类别数量
-    - input_dim: 输入维度
-    - model_size: 模型大小 ('small', 'big', '128*64', '64*32', '32*16', '16*8', '8*4', '4*2', '2*1')
-    - dropout: dropout率
-    - gate: 是否使用门控注意力
-    - inst_number: 正负样本采样数量
-    - instance_loss_fn: 实例损失函数
-    - subtyping: 是否为子类型问题
-    - cross_attn_dim: Cross Attention 的维度，默认为 output_dim
-    - num_heads: 注意力头数（当前实现为单头，保留用于未来扩展）
-    - cross_attn_dropout: Cross Attention 的 dropout 率，默认 0.1
+    PS3 model, using Cross Attention mechanism for multimodal fusion
+
+    Configuration parameters:
+    - n_classes: Number of classes
+    - input_dim: Input dimension
+    - model_size: Model size ('small', 'big', '128*64', '64*32', '32*16', '16*8', '8*4', '4*2', '2*1')
+    - dropout: Dropout rate
+    - gate: Whether to use gated attention
+    - inst_number: Number of positive/negative samples
+    - instance_loss_fn: Instance loss function
+    - subtyping: Whether it's a subtyping problem
+    - cross_attn_dim: Cross Attention dimension, defaults to output_dim
+    - num_heads: Number of attention heads (currently implemented as single head, reserved for future expansion)
+    - cross_attn_dropout: Cross Attention dropout rate, default 0.1
     """
     
     def __init__(self, config):
         """
-        初始化 PS3 模型，设置 Cross Attention 相关参数
-        
-        @param {Dict} config - 模型配置字典，包含模型所需的所有参数
+        Initialize PS3 model, set Cross Attention related parameters
+
+        @param {Dict} config - Model configuration dictionary, containing all parameters required by the model
         """
         super().__init__(config)
         self.modality_order = sorted(self.used_modality)
@@ -52,20 +52,20 @@ class PS3(ClamMLP):
         """
         统一的前向传播接口，使用 Cross Attention 进行多模态特征融合
         
-        流程：
-        1. 提取各模态特征（WSI/TMA 使用 CLAM，其他模态使用 transfer layer）
-        2. 为每个模态生成 Q, K, V 投影
-        3. 对每个模态，使用其 Q 查询所有模态的 K，计算注意力权重
-        4. 使用注意力权重对所有模态的 V 进行加权求和
-        5. 拼接所有融合后的特征，通过 fusion_prediction 进行分类
+        Process:
+        1. Extract features for each modality (WSI/TMA use CLAM, other modalities use transfer layer)
+        2. Generate Q, K, V projections for each modality
+        3. For each modality, use its Q to query all modalities' K, calculate attention weights
+        4. Use attention weights to perform weighted summation of all modalities' V
+        5. Concatenate all fused features and perform classification through fusion_prediction
         
         @param {torch.Tensor|Dict[str, torch.Tensor]} input_data - 输入数据
-            - torch.Tensor: 单模态特征 [N, D]
-            - Dict[str, torch.Tensor]: 多模态数据字典，key 为模态名称
-        @param {torch.Tensor} label - 标签张量，用于实例评估 [1]
+            - torch.Tensor: Single-modal features [N, D]
+            - Dict[str, torch.Tensor]: Multimodal data dictionary, key is modality name
+        @param {torch.Tensor} label - Label tensor for instance evaluation [1]
                 
-        @returns {Dict[str, Any]} 统一格式的结果字典，包含：
-            - Y_prob: 预测概率 [1, n_classes]
+        @returns {Dict[str, Any]} Unified format result dictionary, contains:
+            - Y_prob: Prediction probabilities [1, n_classes]
             - Y_hat: 预测类别 [1, 1]
             - 各模态的 CLAM 相关结果（如果适用）
         """

@@ -4,7 +4,7 @@
 # SVD + Dynamic Gate 实验脚本（不启用 Random Loss）
 # =============================================================================
 
-# 环境设置
+# Environment Setup
 source ~/zheng/miniconda3/etc/profile.d/conda.sh
 conda activate multimodal-fusion
 cd /home/zheng/zheng/multimodal-fusion/downstream_survival
@@ -12,13 +12,13 @@ cd /home/zheng/zheng/multimodal-fusion/downstream_survival
 CUDA_DEVICE=1
 export CUDA_VISIBLE_DEVICES="$CUDA_DEVICE"
 
-# 数据相关参数
+# Data-related parameters
 DATA_ROOT_DIR="/home/zheng/zheng/public/3"
 RESULTS_DIR="/home/zheng/zheng/multimodal-fusion/downstream_survival/results"
 CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv"
 TARGET_CHANNELS="wsi tma clinical pathological blood icd tma_cell_density"
 
-# 实验 & 训练参数
+# Experiment & Training parameters
 EXP_CODE="svd_dynamic_clam"
 SEED=5678
 K_FOLDS=10

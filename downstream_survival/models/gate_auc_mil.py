@@ -7,19 +7,19 @@ from libauc.losses import AUCMLoss
 
 class GateAUCMIL(GateSharedMIL):
     """
-    GatedGTECLAM 模型
-    
-    配置参数：
-    - n_classes: 类别数量
-    - input_dim: 输入维度
-    - model_size: 模型大小 ('small', 'big', '128*64', '64*32', '32*16', '16*8', '8*4', '4*2', '2*1')
-    - dropout: dropout率
-    - gate: 是否使用门控注意力
-    - inst_number: 正负样本采样数量
-    - instance_loss_fn: 实例损失函数
-    - subtyping: 是否为子类型问题
-    - shared_gated: 是否共享门控注意力
-    - use_auc_loss: 是否使用AUC损失
+    GatedGTECLAM model
+
+    Configuration parameters:
+    - n_classes: Number of classes
+    - input_dim: Input dimension
+    - model_size: Model size ('small', 'big', '128*64', '64*32', '32*16', '16*8', '8*4', '4*2', '2*1')
+    - dropout: Dropout rate
+    - gate: Whether to use gated attention
+    - inst_number: Number of positive/negative samples
+    - instance_loss_fn: Instance loss function
+    - subtyping: Whether it's a subtyping problem
+    - shared_gated: Whether to share gated attention
+    - use_auc_loss: Whether to use AUC loss
     """
     
     def __init__(self, config):
@@ -36,21 +36,21 @@ class GateAUCMIL(GateSharedMIL):
     
     def forward(self, input_data, label=None, return_features=False, **kwargs):
         """
-        统一的前向传播接口
-        
+        Unified forward propagation interface
+
         Args:
-            input_data: 输入数据，可以是：
-                - torch.Tensor: 单模态特征 [N, D]
-                - Dict[str, torch.Tensor]: 多模态数据字典
-            label: 标签（用于实例评估，可选）
-            return_features: 是否返回特征信息
-            **kwargs: 其他参数，支持：
-                - instance_eval: 是否进行实例评估
-                
+            input_data: Input data, can be:
+                - torch.Tensor: Single-modal features [N, D]
+                - Dict[str, torch.Tensor]: Multimodal data dictionary
+            label: Labels (for instance evaluation, optional)
+            return_features: Whether to return feature information
+            **kwargs: Other parameters, support:
+                - instance_eval: Whether to perform instance evaluation
+
         Returns:
-            Dict[str, Any]: 统一格式的结果字典
+            Dict[str, Any]: Unified format result dictionary
         """
-        # 处理输入数据（支持多模态）
+        # Process input data (support multimodal)
         input_features = self._process_input_data(input_data)
         
         result_kwargs = dict()
@@ -58,18 +58,18 @@ class GateAUCMIL(GateSharedMIL):
         result_kwargs['confidence_logits_loss'] = 0
         result_kwargs['confidence_loss'] = 0
         
-        # 初始化feature存储字典（如果需要返回features）
+        # Initialize feature storage dictionary (if need to return features)
         if return_features:
-            result_kwargs['raw_features'] = {}  # 原始输入特征
-            result_kwargs['weighted_features'] = {}  # 特征权重加权后的特征
-            result_kwargs['attention_weights'] = {}  # 注意力权重
-            result_kwargs['combined_features'] = {}  # MIL聚合后的特征
-            result_kwargs['confidence_scores'] = {}  # 置信度分数
-            result_kwargs['feature_weights'] = {}  # 特征权重
+            result_kwargs['raw_features'] = {}  # Raw input features
+            result_kwargs['weighted_features'] = {}  # Feature-weighted features
+            result_kwargs['attention_weights'] = {}  # Attention weights
+            result_kwargs['combined_features'] = {}  # MIL aggregated features
+            result_kwargs['confidence_scores'] = {}  # Confidence scores
+            result_kwargs['feature_weights'] = {}  # Feature weights
         
         conf_h = torch.zeros(1, len(self.channels_used_in_model)*self.input_dim, device=self.device)
         for i, channel in enumerate(input_features):
-            # 保存原始特征（如果需要）
+            # Save raw features (if needed)
             if return_features or attention_only:
                 result_kwargs['raw_features'][channel] = input_features[channel].clone()
             
@@ -77,7 +77,7 @@ class GateAUCMIL(GateSharedMIL):
             self.FeatureWeight[channel] = self.ChannelFeatureWeightor[channel](input_features[channel])
             input_features[channel] = self.FeatureWeight[channel] * input_features[channel]
             
-            # 保存加权特征和特征权重（如果需要）
+            # Save weighted features and feature weights (if needed)
             if return_features or attention_only:
                 result_kwargs['weighted_features'][channel] = input_features[channel].clone()
                 result_kwargs['feature_weights'][channel] = self.FeatureWeight[channel].clone()
@@ -85,7 +85,7 @@ class GateAUCMIL(GateSharedMIL):
             # [N, D] -> [N, 1]
             A = self.SampleAtt[channel](input_features[channel]).T
             
-            # 保存注意力权重（如果需要）
+            # Save attention weights (if needed)
             if return_features:
                 result_kwargs['attention_weights'][channel] = A.clone()
             
@@ -93,7 +93,7 @@ class GateAUCMIL(GateSharedMIL):
             # MIL: combined features
             h = torch.mm(A, input_features[channel])
             
-            # 保存聚合特征（如果需要）
+            # Save aggregated features (if needed)
             if return_features:
                 result_kwargs['combined_features'][channel] = h.clone()
             
@@ -102,7 +102,7 @@ class GateAUCMIL(GateSharedMIL):
             # [1, D] -> [1, 1]
             self.TCPConfidence[channel] = self.TCPConfidenceLayer[channel](h)
             
-            # 保存置信度分数（如果需要）
+            # Save confidence scores (if needed)
             if return_features:
                 result_kwargs['confidence_scores'][channel] = self.TCPConfidence[channel].clone()
             
@@ -112,7 +112,7 @@ class GateAUCMIL(GateSharedMIL):
             conf_h[:, i*self.input_dim:(i+1)*self.input_dim] = input_features[channel]*self.TCPConfidence[channel]
             result_kwargs['feature_weight_loss'] += torch.mean(self.FeatureWeight[channel])
             
-            # 只有在有label时才计算损失
+            # Only calculate loss when label is available
             if label is not None:
                 # pred: [1, n_classes]
                 pred = F.softmax(self.TCPLogits[channel], dim = 1)
@@ -135,7 +135,7 @@ class GateAUCMIL(GateSharedMIL):
         Y_hat = torch.topk(logits, 1, dim = 1)[1]
         Y_prob = F.softmax(logits, dim = 1)
         
-        # 如果只需要注意力权重，直接返回
+        # If only attention weights are needed, return directly
         if attention_only:
             return {
                 'attention_weights': result_kwargs['attention_weights'],
@@ -143,7 +143,7 @@ class GateAUCMIL(GateSharedMIL):
                 'confidence_scores': result_kwargs['confidence_scores']
             }
         
-        # 构建统一的结果字典
+        # Build unified result dictionary
         return self._create_result_dict(
             logits=logits,
             probabilities=Y_prob,
@@ -153,7 +153,7 @@ class GateAUCMIL(GateSharedMIL):
     
     def loss_fn(self, logits: torch.Tensor, labels: torch.Tensor, result: Dict[str, float]) -> torch.Tensor:
         """
-        损失函数
+        Loss function
         """
         if 'group_predictions' not in result:
             result['group_predictions'] = []
@@ -166,7 +166,7 @@ class GateAUCMIL(GateSharedMIL):
     
     def group_loss_fn(self, result: Dict[str, float]) -> torch.Tensor:
         """
-        计算分组损失
+        Calculate group loss
         """
         logits = torch.cat(self.group_logits, dim=0).to(self.device)
         targets = torch.cat(self.group_labels, dim=0).to(self.device)
@@ -193,13 +193,13 @@ class GateAUCMIL(GateSharedMIL):
     
     def extract_features(self, input_data):
         """
-        便捷的特征提取方法
-        
+        Convenient feature extraction method
+
         Args:
-            input_data: 输入数据
-            
+            input_data: Input data
+
         Returns:
-            Dict[str, torch.Tensor]: 特征字典
+            Dict[str, torch.Tensor]: Feature dictionary
         """
         with torch.no_grad():
             result = self.forward(input_data, return_features=True)

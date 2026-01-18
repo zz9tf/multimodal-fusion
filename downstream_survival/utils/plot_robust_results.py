@@ -19,16 +19,16 @@ from typing import List, Dict, Tuple
 
 # 设置学术论文风格的 matplotlib 参数
 plt.rcParams.update({
-    'font.size': 20,
+    'font.size': 12,
     'font.family': 'serif',
     'font.serif': ['Times New Roman', 'DejaVu Serif'],
     'axes.linewidth': 1.5,
-    'axes.labelsize': 24,  # 坐标轴标签字体
-    'axes.titlesize': 32,   # 子图标题字体
-    'xtick.labelsize': 18,  # X轴刻度标签字体
-    'ytick.labelsize': 18,  # Y轴刻度标签字体
-    'legend.fontsize': 20,
-    'figure.titlesize': 28,
+    'axes.labelsize': 14,  # 坐标轴标签字体
+    'axes.titlesize': 16,   # 子图标题字体
+    'xtick.labelsize': 11,  # X轴刻度标签字体
+    'ytick.labelsize': 11,  # Y轴刻度标签字体
+    'legend.fontsize': 12,
+    'figure.titlesize': 18,
     'figure.dpi': 300,
     'savefig.dpi': 300,
     'savefig.bbox': 'tight',
@@ -122,14 +122,14 @@ def plot_boxplot(drop_probs: List[float], auc_data: Dict[float, List[float]],
         patch.set_edgecolor('#3498DB')
         patch.set_alpha(0.8)
     
-    ax1.set_xlabel('Drop Probability', fontweight='bold', fontsize=24)
-    ax1.set_ylabel('Test AUC', fontweight='bold', fontsize=24)
-    ax1.set_title('(a) Test AUC', fontweight='bold', pad=10, fontsize=32)
+    ax1.set_xlabel('Drop Probability', fontsize=16)
+    ax1.set_ylabel('Test AUC', fontsize=16)
+    ax1.set_title('(a) Test AUC', fontweight='bold', pad=10, fontsize=20)
     ax1.set_xticks(range(len(drop_probs)))
-    ax1.set_xticklabels([f'{dp:.1f}' for dp in drop_probs], fontsize=18)
+    ax1.set_xticklabels([f'{dp:.1f}' for dp in drop_probs], fontsize=11)
     ax1.set_ylim([0.2, 1.0])
     ax1.set_yticks(np.arange(0.2, 1.1, 0.1))
-    ax1.tick_params(axis='y', labelsize=18)
+    ax1.tick_params(axis='y', labelsize=11)
     ax1.grid(axis='y', linestyle='--', alpha=0.3)
     ax1.axhline(y=0.5, color='red', linestyle=':', linewidth=1, alpha=0.5, label='Random (0.5)')
     
@@ -149,23 +149,23 @@ def plot_boxplot(drop_probs: List[float], auc_data: Dict[float, List[float]],
         patch.set_edgecolor('#F39C12')
         patch.set_alpha(0.8)
     
-    ax2.set_xlabel('Drop Probability', fontweight='bold', fontsize=24)
-    ax2.set_ylabel('Test Accuracy', fontweight='bold', fontsize=24)
-    ax2.set_title('(b) Test Accuracy', fontweight='bold', pad=10, fontsize=32)
+    ax2.set_xlabel('Drop Probability', fontsize=16)
+    ax2.set_ylabel('Test Accuracy', fontsize=16)
+    ax2.set_title('(b) Test Accuracy', fontweight='bold', pad=10, fontsize=20)
     ax2.set_xticks(range(len(drop_probs)))
-    ax2.set_xticklabels([f'{dp:.1f}' for dp in drop_probs], fontsize=18)
+    ax2.set_xticklabels([f'{dp:.1f}' for dp in drop_probs], fontsize=11)
     ax2.set_ylim([0.2, 1.0])
     ax2.set_yticks(np.arange(0.2, 1.1, 0.1))
-    ax2.tick_params(axis='y', labelsize=18)
+    ax2.tick_params(axis='y', labelsize=11)
     ax2.grid(axis='y', linestyle='--', alpha=0.3)
     
     # 添加图例（无阴影）- 两个子图都要有图例
     median_line = mpatches.Rectangle((0, 0), 1, 1, fc='#2C3E50', linewidth=2)
     mean_line = mpatches.Rectangle((0, 0), 1, 1, fc='#E74C3C', linewidth=1.5, linestyle='--')
     ax1.legend([median_line, mean_line], ['Median', 'Mean'], 
-              loc='upper right', frameon=True, fancybox=False, shadow=False, fontsize=20)
+              loc='upper right', frameon=True, fancybox=False, shadow=False, fontsize=12)
     ax2.legend([median_line, mean_line], ['Median', 'Mean'], 
-              loc='upper right', frameon=True, fancybox=False, shadow=False, fontsize=20)
+              loc='upper right', frameon=True, fancybox=False, shadow=False, fontsize=12)
     
     plt.tight_layout()
     

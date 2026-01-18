@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # =============================================================================
-# 环境设置
+# Environment Setup
 # =============================================================================
 source ~/zheng/miniconda3/etc/profile.d/conda.sh
 conda activate multimodal-fusion
@@ -10,13 +10,13 @@ cd /home/zheng/zheng/multimodal-fusion/downstream_survival
 CUDA_DEVICE=0
 export CUDA_VISIBLE_DEVICES="$CUDA_DEVICE"
 
-# 数据相关参数
+# Data-related parameters
 DATA_ROOT_DIR="/home/zheng/zheng/public/2"
 RESULTS_DIR="/home/zheng/zheng/multimodal-fusion/downstream_survival/results"
 CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv"
 TARGET_CHANNELS="wsi tma clinical pathological blood icd tma_cell_density"
 
-# 实验 & 训练参数
+# Experiment & Training parameters
 # 可以通过列表显式指定要运行的 CONFIG 索引，例如："5 7 9 13"
 CONFIG_LIST=(13 15 17 19)
 SEED=5678

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # =============================================================================
-# 环境设置
+# Environment Setup
 # =============================================================================
 source ~/zheng/miniconda3/etc/profile.d/conda.sh
 conda activate multimodal-fusion
@@ -17,13 +17,13 @@ echo "🚀 开始 Bag Loss 权重占比消融研究..."
 echo "⏰ 开始时间: $(date)"
 echo "=" * 50
 
-# 数据相关参数
+# Data-related parameters
 DATA_ROOT_DIR="/home/zheng/zheng/public/hancock_data/WSI_UNI_encodings/WSI_PrimaryTumor"
 RESULTS_DIR="/home/zheng/zheng/multimodal-fusion/downstream_survival/results"
 CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv"
 TARGET_CHANNELS="tma_CD3 tma_CD8 tma_CD56 tma_CD68 tma_CD163 tma_HE tma_MHC1 tma_PDL1"
 
-# 实验 & 训练参数
+# Experiment & Training parameters
 SEED=5678
 K_FOLDS=10
 MAX_EPOCHS=200

@@ -1,6 +1,6 @@
 """
-通用训练器类
-支持不同的模型类型和训练配置
+Universal Trainer Class
+Supports different model types and training configurations
 """
 
 import numpy as np
@@ -18,11 +18,11 @@ import pandas as pd
 import sys
 import os
 
-# 添加项目路径
+# Add project path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(current_dir)
 
-# 只导入必要的模块，避免依赖 utils.utils
+# Only import necessary modules, avoid dependency on utils.utils
 from models.model_factory import ModelFactory
 from sklearn.metrics import roc_auc_score
 from torchmetrics.classification import AUROC as TM_AUROC
@@ -30,30 +30,30 @@ from torchmetrics.classification import AUROC as TM_AUROC
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def to_serializable(obj: Any) -> Any:
-    """通用JSON安全序列化转换器
+    """Universal JSON-safe serialization converter
 
-    - 将 numpy 标量转换为 Python 标量
-    - 将 numpy 数组转换为列表
-    - 将 torch 张量移动到 CPU 并转换为列表
-    - 其他不可序列化对象转换为字符串
+    - Convert numpy scalars to Python scalars
+    - Convert numpy arrays to lists
+    - Move torch tensors to CPU and convert to lists
+    - Convert other non-serializable objects to strings
     """
-    # numpy 标量
+    # numpy scalars
     if isinstance(obj, (np.integer,)):
         return int(obj)
     if isinstance(obj, (np.floating,)):
         return float(obj)
     if obj is np.nan:
         return None
-    # numpy 数组
+    # numpy arrays
     if isinstance(obj, np.ndarray):
         return obj.tolist()
-    # torch 张量
+    # torch tensors
     if torch.is_tensor(obj):
         try:
             return obj.detach().cpu().tolist()
         except Exception:
             return str(obj)
-    # 其他常见不可序列化类型兜底为字符串
+    # Fallback to string for other common non-serializable types
     try:
         json.dumps(obj)
         return obj
@@ -62,50 +62,50 @@ def to_serializable(obj: Any) -> Any:
 
 def save_splits(split_datasets, column_keys, filename, boolean_style=False):
 	"""
-	保存数据集分割信息（使用patient_id/case_id而非索引，确保可复现性）
-	
-	关键修复：从Subset对象中提取原始数据集的case_ids，使用实际的case_id而非索引
-	这样即使数据集顺序不同，也能通过case_id正确匹配划分
+	Save dataset split information (using patient_id/case_id instead of indices for reproducibility)
+
+	Key fix: Extract case_ids from original dataset in Subset objects, using actual case_id instead of indices
+	This way splits can be correctly matched even if dataset order differs
 	"""
 	try:
-		# 获取每个分割的case_ids（从Subset中提取原始数据集的case_ids）
+		# Get case_ids for each split (extract from original dataset in Subset)
 		splits = []
 		for i, dataset in enumerate(split_datasets):
 			if hasattr(dataset, 'case_ids'):
-				# 直接是MultimodalDataset对象
+				# Direct MultimodalDataset object
 				splits.append(pd.Series(dataset.case_ids))
 			elif hasattr(dataset, 'dataset') and hasattr(dataset, 'indices'):
-				# 是Subset对象，需要从原始数据集提取case_ids
+				# Is Subset object, need to extract case_ids from original dataset
 				base_dataset = dataset.dataset
 				indices = dataset.indices
 				
 				if hasattr(base_dataset, 'case_ids'):
-					# 从原始数据集的case_ids中提取对应的case_id
+					# Extract corresponding case_id from original dataset's case_ids
 					base_case_ids = base_dataset.case_ids
 					if isinstance(base_case_ids, list):
 						case_ids = [base_case_ids[idx] for idx in indices]
 					else:
-						# 如果是其他类型（如numpy array），转换为list
+						# If other type (like numpy array), convert to list
 						case_ids = [base_case_ids[idx] for idx in indices]
 					splits.append(pd.Series(case_ids))
 				else:
-					# fallback: 使用索引
+					# fallback: use indices
 					splits.append(pd.Series([f"sample_{j}" for j in indices]))
 			else:
-				# fallback: 使用索引
+				# fallback: use indices
 				splits.append(pd.Series([f"sample_{j}" for j in range(len(dataset))]))
 		
 		if not boolean_style:
-			# 创建DataFrame，每列是一个分割的case_ids
-			# 使用最长的分割作为DataFrame的长度，较短的用NaN填充
+			# Create DataFrame, each column is a split's case_ids
+			# Use longest split as DataFrame length, pad shorter ones with NaN
 			max_len = max(len(s) for s in splits) if splits else 0
 			
-			# 创建字典，每个键对应一个分割的case_ids
+			# Create dictionary, each key corresponds to a split's case_ids
 			data_dict = {}
 			for i, col_key in enumerate(column_keys):
 				if i < len(splits):
 					case_ids = splits[i].tolist()
-					# 填充NaN使其长度一致
+					# Pad with NaN to make lengths consistent
 					while len(case_ids) < max_len:
 						case_ids.append(None)
 					data_dict[col_key] = case_ids
@@ -113,7 +113,7 @@ def save_splits(split_datasets, column_keys, filename, boolean_style=False):
 					data_dict[col_key] = [None] * max_len
 			
 			df = pd.DataFrame(data_dict)
-			# 移除全NaN的行
+			# Remove rows that are all NaN
 			df = df.dropna(how='all')
 		else:
 			df = pd.concat(splits, ignore_index = True, axis=0)
@@ -123,12 +123,12 @@ def save_splits(split_datasets, column_keys, filename, boolean_style=False):
 			df = pd.DataFrame(bool_array, index=index, columns = ['train', 'val', 'test'])
 
 		df.to_csv(filename, index=False)
-		print(f"✅ 保存分割信息到: {filename} (使用case_id)")
+		print(f"✅ Saved split information to: {filename} (using case_id)")
 	except Exception as e:
-		print(f"⚠️ 保存分割信息失败: {e}")
+		print(f"⚠️ Failed to save split information: {e}")
 		import traceback
 		traceback.print_exc()
-		# 创建一个简单的分割记录
+		# Create a simple split record
 		split_info = {
 			'split_type': column_keys,
 			'train_size': len(split_datasets[0]) if len(split_datasets) > 0 else 0,
@@ -136,17 +136,17 @@ def save_splits(split_datasets, column_keys, filename, boolean_style=False):
 			'test_size': len(split_datasets[2]) if len(split_datasets) > 2 else 0
 		}
 		pd.DataFrame([split_info]).to_csv(filename, index=False)
-		print(f"✅ 保存简化分割信息到: {filename}")
+		print(f"✅ Saved simplified split information to: {filename}")
 
 def print_network(model: nn.Module):
-    """打印网络结构和参数统计"""
+    """Print network architecture and parameter statistics"""
     print("=" * 50)
     print("Model Architecture:")
     print("=" * 50)
     print(model)
     print("=" * 50)
     
-    # 计算参数统计
+    # Calculate parameter statistics
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     
@@ -156,7 +156,7 @@ def print_network(model: nn.Module):
     print("=" * 50)
 
 def get_optim(model: nn.Module, opt: str, lr: float, reg: float) -> torch.optim.Optimizer:
-    """获取优化器"""
+    """Get optimizer"""
     if opt == "adam":
         optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), 
                                    lr=lr, weight_decay=reg)
@@ -170,14 +170,14 @@ def get_optim(model: nn.Module, opt: str, lr: float, reg: float) -> torch.optim.
 
 def get_scheduler(optimizer: torch.optim.Optimizer, scheduler_config: Dict) -> Optional[torch.optim.lr_scheduler._LRScheduler]:
     """
-    获取学习率调度器
-    
+    Get learning rate scheduler
+
     Args:
-        optimizer: 优化器
-        scheduler_config: 调度器配置字典
-        
+        optimizer: Optimizer
+        scheduler_config: Scheduler configuration dictionary
+
     Returns:
-        学习率调度器或None
+        Learning rate scheduler or None
     """
     scheduler_type = scheduler_config.get('type', None)
     
@@ -195,9 +195,9 @@ def get_scheduler(optimizer: torch.optim.Optimizer, scheduler_config: Dict) -> O
         return torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_max, eta_min=eta_min)
     
     elif scheduler_type == 'cosine_warm_restart':
-        T_0 = scheduler_config.get('T_0', 10)  # 第一个重启周期长度
-        T_mult = scheduler_config.get('T_mult', 2)  # 周期长度倍增因子
-        eta_min = scheduler_config.get('eta_min', 0.0)  # 最小学习率
+        T_0 = scheduler_config.get('T_0', 10)  # First restart cycle length
+        T_mult = scheduler_config.get('T_mult', 2)  # Cycle length multiplication factor
+        eta_min = scheduler_config.get('eta_min', 0.0)  # Minimum learning rate
         return torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
             optimizer, T_0=T_0, T_mult=T_mult, eta_min=eta_min
         )
@@ -215,18 +215,18 @@ def get_scheduler(optimizer: torch.optim.Optimizer, scheduler_config: Dict) -> O
         return torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=gamma)
     
     else:
-        print(f"⚠️ 未知的调度器类型: {scheduler_type}")
+        print(f"⚠️ Unknown scheduler type: {scheduler_type}")
         return None
 
 def get_split_loader(dataset, training=False, weighted=False, batch_size=1, generator=None):
-    """获取数据加载器
-    
+    """Get data loader
+
     Args:
-        dataset: 数据集
-        training: 是否为训练模式
-        weighted: 是否使用加权采样
-        batch_size: batch大小
-        generator: 随机数生成器（用于确保采样顺序一致）
+        dataset: Dataset
+        training: Whether in training mode
+        weighted: Whether to use weighted sampling
+        batch_size: Batch size
+        generator: Random number generator (for consistent sampling order)
     """
     if training:
         if weighted:
@@ -239,34 +239,34 @@ def get_split_loader(dataset, training=False, weighted=False, batch_size=1, gene
         return torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False)
 
 def make_weights_for_balanced_classes_split(dataset):
-    """为平衡类别创建权重"""
+    """Create weights for balanced classes"""
     N = float(len(dataset))
     
-    # 获取标签，适配MultimodalDataset格式
+    # Get labels, adapt to MultimodalDataset format
     labels = []
     unique_labels = set()
     
     for i in range(len(dataset)):
-        # 处理Subset对象
+        # Handle Subset objects
         if hasattr(dataset, 'dataset') and hasattr(dataset.dataset, 'get_label'):
-            # 通过Subset的indices获取原始数据集的索引
+            # Get original dataset index through Subset's indices
             original_idx = dataset.indices[i]
             label = dataset.dataset.get_label(original_idx)
         else:
-            # 直接处理MultimodalDataset
+            # Handle MultimodalDataset directly
             label = dataset.get_label(i)
         
         unique_labels.add(label)
         labels.append(label)
     
-    # 使用数据集的标签映射
+    # Use dataset's label mapping
     if hasattr(dataset, 'label_to_int'):
         label_to_int = dataset.label_to_int
     else:
-        # 如果没有标签映射，创建默认映射
+        # If no label mapping, create default mapping
         label_to_int = {label: idx for idx, label in enumerate(sorted(unique_labels))}
     
-    # 将字符串标签转换为数字
+    # Convert string labels to numbers
     numeric_labels = [label_to_int[label] for label in labels]
     labels = np.array(numeric_labels)
     
@@ -278,24 +278,24 @@ def make_weights_for_balanced_classes_split(dataset):
 
 class Logger:
     """
-    统一的训练指标记录器
-    整合了准确率统计、训练日志记录和最佳指标跟踪功能
+    Unified training metrics logger
+    Integrates accuracy statistics, training log recording, and best metrics tracking
     """
     
     def __init__(self, n_classes: int, log_dir: str = None, fold: int = 0):
         """
-        初始化指标记录器
-        
+        Initialize metrics logger
+
         Args:
-            n_classes: 类别数量
-            log_dir: 日志保存目录（可选）
-            fold: fold索引
+            n_classes: Number of classes
+            log_dir: Log save directory (optional)
+            fold: Fold index
         """
         self.n_classes = n_classes
         self.log_dir = log_dir
         self.fold = fold
         
-        # 类别统计
+        # Class statistics
         self.batch_log = {
             'class_stats': [{"count": 0, "correct": 0} for _ in range(self.n_classes)],
             'labels': [],
@@ -303,7 +303,7 @@ class Logger:
             'loss': 0.0
         }
         
-        # 训练日志
+        # Training logs
         self.epoch_logs = []
         self.best_metrics = {
             'best_val_loss': float('inf'),
@@ -312,7 +312,7 @@ class Logger:
             'best_epoch': 0
         }
         
-        # 初始化文件记录（如果提供了log_dir）
+        # Initialize file logging (if log_dir provided)
         if log_dir:
             os.makedirs(log_dir, exist_ok=True)
             self.csv_path = os.path.join(log_dir, f'fold_{fold}_training_log.csv')
@@ -325,7 +325,7 @@ class Logger:
                 ])
     
     def reset_epoch_stats(self):
-        """重置当前epoch的统计"""
+        """Reset current epoch statistics"""
         self.batch_log = {
             'class_stats': [{"count": 0, "correct": 0} for _ in range(self.n_classes)],
             'labels': [],
@@ -335,15 +335,15 @@ class Logger:
     
     def log_batch(self, Y_hat, Y, Y_prob, loss):
         """
-        记录批次预测结果，loss，labels，probs
-        
+        Log batch predictions, loss, labels, probs
+
         Args:
-            Y_hat: 预测结果 (int, tensor, 或 array)
-            Y: 真实标签 (int, tensor, 或 array)
-            Y_prob: 预测概率 (tensor, 或 array)
-            loss: 损失值 (tensor)
+            Y_hat: Predicted results (int, tensor, or array)
+            Y: True labels (int, tensor, or array)
+            Y_prob: Prediction probabilities (tensor or array)
+            loss: Loss value (tensor)
         """
-        # 统一转为Tensor（不转numpy），用于后续torch.cat
+        # Convert to Tensor uniformly (not to numpy), for subsequent torch.cat
         if not torch.is_tensor(Y_hat):
             Y_hat = torch.as_tensor(Y_hat)
         if not torch.is_tensor(Y):
@@ -351,7 +351,7 @@ class Logger:
         if not torch.is_tensor(Y_prob):
             Y_prob = torch.as_tensor(Y_prob)
 
-        # 统计分类正确数
+        # Count classification correct numbers
         if Y_hat.numel() == 1 and Y.numel() == 1:
             label_class = int(Y.item())
             self.batch_log['class_stats'][label_class]["count"] += 1
@@ -363,15 +363,15 @@ class Logger:
                 self.batch_log['class_stats'][label_class]["count"] += int(cls_mask.sum().item())
                 self.batch_log['class_stats'][label_class]["correct"] += int((Y_hat[cls_mask] == Y[cls_mask]).sum().item())
 
-        # 追加到日志（保持为Tensor）
+        # Append to logs (keep as Tensor)
         self.batch_log['labels'].append(Y)
         self.batch_log['probs'].append(Y_prob)
         self.batch_log['loss'] += float(loss.item())
     
     def get_class_accuracy(self, class_idx: int) -> Tuple[Optional[float], int, int]:
         """
-        获取指定类别的准确率
-        
+        Get accuracy for specified class
+
         Returns:
             (accuracy, correct_count, total_count)
         """
@@ -384,7 +384,7 @@ class Logger:
             return float(correct) / count, correct, count
     
     def get_overall_accuracy(self) -> float:
-        """获取整体准确率"""
+        """Get overall accuracy"""
         total_correct = sum(stat["correct"] for stat in self.batch_log['class_stats'])
         total_count = sum(stat["count"] for stat in self.batch_log['class_stats'])
         
@@ -394,13 +394,13 @@ class Logger:
     
     def log_epoch(self, epoch: int, train_metrics: Dict, val_metrics: Dict, lr: float):
         """
-        记录epoch指标
-        
+        Log epoch metrics
+
         Args:
-            epoch: 当前epoch
-            train_metrics: 训练指标字典
-            val_metrics: 验证指标字典  
-            lr: 学习率
+            epoch: Current epoch
+            train_metrics: Training metrics dictionary
+            val_metrics: Validation metrics dictionary
+            lr: Learning rate
         """
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
@@ -418,7 +418,7 @@ class Logger:
         
         self.epoch_logs.append(epoch_log)
         
-        # 写入CSV文件（如果启用了文件记录）
+        # Write to CSV file (if file logging is enabled)
         if self.log_dir:
             with open(self.csv_path, 'a', newline='', encoding='utf-8') as f:
                 writer = csv.writer(f)
@@ -428,10 +428,10 @@ class Logger:
                     epoch_log['val_auc'], epoch_log['learning_rate'], epoch_log['timestamp']
                 ])
         
-        # 更新最佳指标
+        # Update best metrics
         self._update_best_metrics(epoch, val_metrics)
         
-        # 打印进度
+        # Print progress
         print(f"📊 Epoch {epoch:3d} | "
               f"Train: Loss={train_metrics.get('loss', 0.0):.4f}, "
               f"Acc={train_metrics.get('acc', 0.0):.4f}, "
@@ -441,7 +441,7 @@ class Logger:
               f"AUC={val_metrics.get('auc', 0.0):.4f}")
     
     def _update_best_metrics(self, epoch: int, val_metrics: Dict):
-        """更新最佳指标"""
+        """Update best metrics"""
         val_loss = val_metrics.get('loss', float('inf'))
         val_acc = val_metrics.get('acc', 0.0)
         val_auc = val_metrics.get('auc', 0.0)
@@ -457,7 +457,7 @@ class Logger:
             self.best_metrics['best_val_auc'] = val_auc
     
     def save_summary(self, test_metrics: Dict = None):
-        """保存训练总结"""
+        """Save training summary"""
         summary = {
             'fold': self.fold,
             'best_metrics': self.best_metrics,
@@ -467,46 +467,46 @@ class Logger:
         }
         
         if self.log_dir:
-            # 保存JSON总结
+            # Save JSON summary
             summary_path = os.path.join(self.log_dir, f'fold_{self.fold}_summary.json')
             with open(summary_path, 'w', encoding='utf-8') as f:
                 json.dump(summary, f, indent=2, ensure_ascii=False, default=to_serializable)
         
-        # 打印总结
-        print(f"\n🎯 Fold {self.fold} 训练总结:")
-        print(f"   最佳验证损失: {self.best_metrics['best_val_loss']:.4f} (Epoch {self.best_metrics['best_epoch']})")
-        print(f"   最佳验证准确率: {self.best_metrics['best_val_acc']:.4f}")
-        print(f"   最佳验证AUC: {self.best_metrics['best_val_auc']:.4f}")
+        # Print summary
+        print(f"\n🎯 Fold {self.fold} training summary:")
+        print(f"   Best validation loss: {self.best_metrics['best_val_loss']:.4f} (Epoch {self.best_metrics['best_epoch']})")
+        print(f"   Best validation accuracy: {self.best_metrics['best_val_acc']:.4f}")
+        print(f"   Best validation AUC: {self.best_metrics['best_val_auc']:.4f}")
         
         if test_metrics:
-            print(f"   测试准确率: {test_metrics.get('acc', 0.0):.4f}")
-            print(f"   测试AUC: {test_metrics.get('auc', 0.0):.4f}")
+            print(f"   Test accuracy: {test_metrics.get('acc', 0.0):.4f}")
+            print(f"   Test AUC: {test_metrics.get('auc', 0.0):.4f}")
         
         return summary
 
 class EarlyStopping:
     """
-    早停机制
-    
-    支持根据任意指标（score）进行早停，可以是 loss、AUC、accuracy 等
-    通过 mode 参数指定是最大化还是最小化指标
+    Early stopping mechanism
+
+    Supports early stopping based on any metric (score), can be loss, AUC, accuracy, etc.
+    Specify whether to maximize or minimize the metric via mode parameter
     """
     
-    def __init__(self, 
-                 patience: int = 20, 
-                 stop_epoch: int = 50, 
+    def __init__(self,
+                 patience: int = 20,
+                 stop_epoch: int = 50,
                  verbose: bool = False,
                  mode: str = 'max',
                  min_delta: float = 0.0):
         """
-        初始化早停机制
-        
+        Initialize early stopping mechanism
+
         Args:
-            patience: 容忍多少个 epoch 没有改善
-            stop_epoch: 最早在第几个 epoch 之后才允许早停
-            verbose: 是否打印详细信息
-            mode: 'max' 表示最大化指标（如 AUC、accuracy），'min' 表示最小化指标（如 loss）
-            min_delta: 改善的最小阈值，只有超过这个阈值才认为是改善
+            patience: How many epochs to tolerate without improvement
+            stop_epoch: Earliest epoch after which early stopping is allowed
+            verbose: Whether to print detailed information
+            mode: 'max' means maximize metric (like AUC, accuracy), 'min' means minimize metric (like loss)
+            min_delta: Minimum threshold for improvement, only considered improvement if exceeding this threshold
         """
         self.patience = patience
         self.stop_epoch = stop_epoch
@@ -517,47 +517,47 @@ class EarlyStopping:
         self.best_score = None
         self.early_stop = False
         
-        # 根据模式设置初始最佳值
+        # Set initial best score based on mode
         if self.mode == 'max':
             self.best_score = -np.Inf
         elif self.mode == 'min':
             self.best_score = np.Inf
         else:
-            raise ValueError(f"mode 必须是 'max' 或 'min'，当前为: {mode}")
+            raise ValueError(f"mode must be 'max' or 'min', current: {mode}")
 
     def __call__(self, epoch: int, score: float, model: nn.Module, ckpt_name: str = 'checkpoint.pt') -> bool:
         """
-        检查是否应该早停
-        
+        Check if early stopping should be triggered
+
         Args:
-            epoch: 当前 epoch 编号
-            score: 当前指标值（可以是 loss、AUC、accuracy 等）
-            model: 模型对象
-            ckpt_name: 检查点保存路径
-            
+            epoch: Current epoch number
+            score: Current metric value (can be loss, AUC, accuracy, etc.)
+            model: Model object
+            ckpt_name: Checkpoint save path
+
         Returns:
-            是否应该早停
+            Whether early stopping should be triggered
         """
-        # 判断是否改善
+        # Determine if improved
         if self.mode == 'max':
-            # 最大化模式：score 越大越好
+            # Maximization mode: higher score is better
             is_better = score > (self.best_score + self.min_delta)
         else:
-            # 最小化模式：score 越小越好
+            # Minimization mode: lower score is better
             is_better = score < (self.best_score - self.min_delta)
         
         if is_better:
-            # 有改善，更新最佳值并保存模型
+            # If improved, update best score and save model
             self.best_score = score
             self.save_checkpoint(score, model, ckpt_name)
             self.counter = 0
         else:
-            # 没有改善，增加计数器
+            # If not improved, increase counter
             self.counter += 1
             if self.verbose:
                 print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
             
-            # 检查是否应该早停
+            # Check if early stopping should be triggered
             if self.counter >= self.patience and epoch > self.stop_epoch:
                 self.early_stop = True
         
@@ -565,12 +565,12 @@ class EarlyStopping:
 
     def save_checkpoint(self, score: float, model: nn.Module, ckpt_name: str):
         """
-        保存模型检查点
+        Save model checkpoint
         
         Args:
-            score: 当前指标值
-            model: 模型对象
-            ckpt_name: 检查点保存路径
+            score: Current metric value
+            model: Model object
+            ckpt_name: Checkpoint save path
         """
         if self.verbose:
             mode_str = 'increased' if self.mode == 'max' else 'decreased'
@@ -579,32 +579,32 @@ class EarlyStopping:
 
 class Trainer:
     """
-    通用训练器类
-    支持不同的模型类型和训练配置
+    Universal Trainer Class
+    Supports different model types and training configurations
     """
     
     def __init__(self, 
                  configs: Dict,
                  log_dir: str = None):
         """
-        初始化训练器
-        
+        Initialize trainer
+
         Args:
-            configs: 配置字典
-            log_dir: 日志保存目录
+            configs: Configuration dictionary
+            log_dir: Log save directory
         """
         self.model_config = configs['model_config']
         self.experiment_config = configs['experiment_config']
         self.results_dir = self.experiment_config['results_dir']
         self.log_dir = log_dir or './logs'
         
-        # 验证配置完整性
+        # Validate configuration completeness
         required_training_params = ['max_epochs', 'lr', 'reg', 'opt', 'early_stopping', 'batch_size']
         missing_training_params = [param for param in required_training_params if param not in self.experiment_config]
         if missing_training_params:
-            raise ValueError(f"训练配置缺少必需参数: {missing_training_params}")
+            raise ValueError(f"Training configuration missing required parameters: {missing_training_params}")
         
-        # 从配置中提取参数
+        # Extract parameters from config
         self.max_epochs = self.experiment_config['max_epochs']
         self.lr = self.experiment_config['lr']
         self.reg = self.experiment_config['reg']
@@ -612,17 +612,17 @@ class Trainer:
         self.early_stopping = self.experiment_config['early_stopping']
         self.batch_size = self.experiment_config['batch_size']
         
-        # 初始化模型和损失函数
+        # Initialize model and loss function
         self.model = None
         self.loss_fn = None
         self.scheduler = None
 
     def _init_model(self) -> nn.Module:
-        """初始化模型"""
-        # 从model_config中获取参数并构建配置
+        """Initialize model"""
+        # Get parameters from model_config and build configuration
         config = self.model_config.copy()
         
-        # 使用模型工厂创建模型
+        # Create model using model factory
         model = ModelFactory.create_model(config)
         
         return model.to(device)
@@ -631,59 +631,71 @@ class Trainer:
                    datasets: Tuple[Any, Any, Any],
                    fold_idx: int) -> Tuple[Dict, float, float, float, float]:
         """
-        Level 1: Fold训练主入口
-        
+        Level 1: Fold training main entry point
+
         Args:
             datasets: (train_dataset, val_dataset, test_dataset)
-            fold_idx: fold索引
-            
+            fold_idx: fold index
+
         Returns:
             (results_dict, test_auc, val_auc, test_acc, val_acc)
         """
         print(f'\nTraining Fold {fold_idx}!')
         
-        # 创建目录和日志记录器
+        # Create directories and logger
         metrics_logger = Logger(self.model_config['n_classes'], self.log_dir, fold_idx)
 
-        # 保存数据集分割
+        # Save dataset splits
         train_split, val_split, test_split = datasets
-        save_splits(datasets, ['train', 'val', 'test'], 
+        save_splits(datasets, ['train', 'val', 'test'],
                    os.path.join(self.results_dir, 'splits_{}.csv'.format(fold_idx)))
-        
-        print(f"Training on {len(train_split)} samples")
-        print(f"Validating on {len(val_split)} samples")
-        print(f"Testing on {len(test_split)} samples")
 
-        # 初始化模型和损失函数
+        # Calculate and validate split ratios
+        total_samples = len(train_split) + len(val_split) + len(test_split)
+        train_ratio = len(train_split) / total_samples
+        val_ratio = len(val_split) / total_samples
+        test_ratio = len(test_split) / total_samples
+
+        print(f"Training on {len(train_split)} samples ({train_ratio:.1%})")
+        print(f"Validating on {len(val_split)} samples ({val_ratio:.1%})")
+        print(f"Testing on {len(test_split)} samples ({test_ratio:.1%})")
+
+        # Validate ratios are reasonable (train should be largest, val and test should be equal)
+        if val_ratio != test_ratio:
+            print(f"⚠️ Warning: Validation set ({val_ratio:.1%}) and test set ({test_ratio:.1%}) ratios are inconsistent")
+        if train_ratio < 0.5:
+            print(f"⚠️ Warning: Training set ratio ({train_ratio:.1%}) is too low, may affect model training")
+
+        # Initialize model and loss function
         model = self._init_model()
         self.loss_fn = model.loss_fn
         print_network(model)
         optimizer = get_optim(model, self.opt, self.lr, self.reg)
         
-        # 初始化学习率调度器
+        # Initialize learning rate scheduler
         scheduler_config = self.experiment_config.get('scheduler_config', {})
         self.scheduler = get_scheduler(optimizer, scheduler_config)
         if self.scheduler:
-            print(f"🎯 使用学习率调度器: {scheduler_config.get('type', 'unknown')}")
+            print(f"🎯 Using learning rate scheduler: {scheduler_config.get('type', 'unknown')}")
         
-        # 初始化数据加载器
+        # Initialize data loaders
         seed = self.experiment_config['seed']
         train_loader = get_split_loader(train_split, training=True, weighted=True, batch_size=1, generator=torch.Generator().manual_seed(seed))
         val_loader = get_split_loader(val_split, training=False, weighted=False, batch_size=1, generator=torch.Generator().manual_seed(seed))
         test_loader = get_split_loader(test_split, training=False, weighted=False, batch_size=1, generator=torch.Generator().manual_seed(seed))
 
-        # 初始化早停
-        # 从配置中获取早停参数，支持自定义指标和模式
+        # Initialize early stopping
+        # Get early stopping parameters from config, support custom metrics and modes
         early_stopping_config = self.experiment_config.get('early_stopping_config', {})
         
         if self.early_stopping:
-            # 如果 early_stopping 是字典，使用字典中的配置；否则使用默认配置
+            # If early_stopping is a dict, use config from dict; otherwise use default config
             if isinstance(self.early_stopping, dict):
                 config = {**early_stopping_config, **self.early_stopping}
             else:
                 config = early_stopping_config
             
-            # 获取配置参数，使用默认值
+            # Get config parameters, use defaults
             patience = config.get('patience', 25)
             stop_epoch = config.get('stop_epoch', 10)
             verbose = config.get('verbose', True)
@@ -698,53 +710,53 @@ class Trainer:
                 mode=mode,
                 min_delta=min_delta
             )
-            # 保存 metric 配置，用于后续选择指标
+            # Save metric configuration for subsequent metric selection
             early_stopping_obj.metric = metric
         else:
             early_stopping_obj = None
         
-        # 2. 训练
+        # 2. Training
         for epoch in range(self.max_epochs):
-            # 训练和验证
+            # Train and validate
             train_metrics = self._train_single_epoch(epoch, train_loader, optimizer, model, metrics_logger)
             val_metrics, stop = self._validate_single_epoch(fold_idx, epoch, val_loader, model, early_stopping_obj)
             
-            # 记录日志
+            # Log metrics
             metrics_logger.log_epoch(epoch, train_metrics, val_metrics, optimizer.param_groups[0]['lr'])
             
-            # 更新学习率调度器
+            # Update learning rate scheduler
             if self.scheduler:
                 if isinstance(self.scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                    # ReduceLROnPlateau需要验证损失
+                    # ReduceLROnPlateau requires validation loss
                     self.scheduler.step(val_metrics['loss'])
                 else:
-                    # 其他调度器使用epoch
+                    # Other schedulers use epoch
                     self.scheduler.step()
             
             if stop: 
                 break
         
-        # 3. 最终评估和返回结果
-        # 保存模型
+        # 3. Final evaluation and return results
+        # Save model
         checkpoint_path = os.path.join(self.results_dir, "s_{}_checkpoint.pt".format(fold_idx))
         if self.early_stopping:
             model.load_state_dict(torch.load(checkpoint_path))
         else:
             torch.save(model.state_dict(), checkpoint_path)
 
-        # 最终评估
+        # Final evaluation
         _, val_accuracy, val_auc, _ = self._evaluate_model(val_loader, model)
         results_dict, test_accuracy, test_auc, eval_logger = self._evaluate_model(test_loader, model)
         
         print('Val accuracy: {:.4f}, ROC AUC: {:.4f}'.format(val_accuracy, val_auc))
         print('Test accuracy: {:.4f}, ROC AUC: {:.4f}'.format(test_accuracy, test_auc))
 
-        # 打印各类别准确率
+        # Print accuracy for each class
         for i in range(self.model_config['n_classes']):
             acc, correct, count = eval_logger.get_class_accuracy(i)
             print('class {}: acc {}, correct {}/{}'.format(i, acc, correct, count))
         
-        # 保存训练总结
+        # Save training summary
         metrics_logger.save_summary({
             'acc': test_accuracy,
             'auc': test_auc,
@@ -755,37 +767,37 @@ class Trainer:
 
     def _train_single_epoch(self, epoch: int, loader: DataLoader, optimizer: torch.optim.Optimizer, model: nn.Module, logger: Logger) -> Dict:
         """
-        Level 3: 标准模型单个epoch训练
+        Level 3: Standard model single epoch training
         """
         model.train()
         
-        # 🔧 重置epoch统计信息，确保每个epoch的统计是独立的
+        # 🔧 Reset epoch statistics to ensure independent statistics for each epoch
         logger.reset_epoch_stats()
 
         print('\n')
         batch_size = self.experiment_config['batch_size']
         total_loss = 0
         for batch_idx, (data, label) in enumerate(loader):
-            # 标签已经是tensor，直接移动到设备
+            # Labels are already tensors, move directly to device
             label = label.to(device)
             
-            # data 现在是字典格式，每个channel包含一个张量
-            # 需要将每个channel的张量移动到设备上
+            # data is now in dictionary format, each channel contains a tensor
+            # Need to move each channel's tensor to device
             for channel in data:
                 data[channel] = data[channel].to(device)
             results = model(data, label)
             Y_prob = results['probabilities']
             Y_hat = results['predictions']
             
-            # 计算损失
+            # Calculate loss
             results['labels'] = label
             loss = self.loss_fn(results['logits'], results['labels'], results)
             total_loss += loss
-            # 记录指标
+            # Log metrics
             logger.log_batch(Y_hat, label, Y_prob, loss)
             
             if (batch_idx + 1) % batch_size == 0:
-                # 反向传播
+                # Backpropagation
                 if hasattr(model, 'group_loss_fn'):
                     results['group_loss'] = model.group_loss_fn(results)
                     total_loss += results['group_loss']
@@ -801,13 +813,13 @@ class Trainer:
                 total_loss = 0
         
         if len(loader) % batch_size != 0:
-            # 计算剩余batch的数量
+            # Calculate the number of remaining batches
             remaining_batches = len(loader) % batch_size
-            # 反向传播
+            # Backpropagation
             if hasattr(model, 'group_loss_fn'):
                 results['group_loss'] = model.group_loss_fn(results)
                 total_loss += results['group_loss']
-            total_loss = total_loss / remaining_batches  # 使用剩余batch数量进行平均
+            total_loss = total_loss / remaining_batches  # Average using remaining batch count
             results['total_loss'] = total_loss.item()
             total_loss.backward()
             optimizer.step()
@@ -817,7 +829,7 @@ class Trainer:
                 if len(items) > 0:
                     print('Final batch: ' + ' '.join([f'{key}: {value:.4f}' for key, value in items]))
             total_loss = 0
-        # 计算平均指标
+        # Calculate average metrics
         train_loss = logger.batch_log['loss'] / len(loader)
 
         print('Epoch: {}, train_loss: {:.4f}, train_acc: {:.4f}'.format(epoch, train_loss, logger.get_overall_accuracy()))
@@ -827,14 +839,14 @@ class Trainer:
             if len(items) > 0:
                 print('- ' + ' '.join([f'{key}: {value:.4f}' for key, value in items]))
         
-        # 计算并返回指标
+        # Calculate and return metrics
         return self._calculate_epoch_metrics(logger)
 
     def _calculate_epoch_metrics(self, logger: Dict) -> Dict:
-        """计算epoch指标"""
+        """Calculate epoch metrics"""
         n_classes = self.model_config['n_classes']
         
-        # 计算准确率
+        # Calculate accuracy
         train_acc = 0.0
         for i in range(n_classes):
             acc, correct, count = logger.get_class_accuracy(i)
@@ -847,7 +859,7 @@ class Trainer:
         train_acc /= n_classes
         train_loss = logger.batch_log['loss'] / len(labels)
 
-        # 计算AUC - 使用 torchmetrics（Tensor/GPU 原生）
+        # Calculate AUC - using torchmetrics (native Tensor/GPU support)
         if n_classes == 2:
             auroc = TM_AUROC(task='binary').to(probs.device)
             train_auc = float(auroc(probs[:, 1], labels.long()).item())
@@ -863,12 +875,12 @@ class Trainer:
         return metrics
 
     def _validate_single_epoch(self, cur: int, epoch: int, loader: DataLoader, model: nn.Module, early_stopping=None) -> Tuple[Dict, bool]:
-        """验证函数"""
+        """Validation function"""
         model.eval()
         n_classes = self.model_config['n_classes']
         logger = Logger(n_classes=n_classes)
         
-        # 重置模型的group_logits和group_labels，确保验证时从干净状态开始
+        # Reset model's group_logits and group_labels to ensure validation starts from clean state
         if hasattr(model, 'group_logits'):
             model.group_logits = []
         if hasattr(model, 'group_labels'):
@@ -878,8 +890,8 @@ class Trainer:
             for batch_idx, (data, label) in enumerate(loader):
                 label = label.to(device)
                 
-                # data 现在是字典格式，每个channel包含一个张量
-                # 需要将每个channel的张量移动到设备上
+                # data is now in dictionary format, each channel contains a tensor
+                # Need to move each channel's tensor to device
                 for channel in data:
                     data[channel] = data[channel].to(device)
 
@@ -891,7 +903,7 @@ class Trainer:
                 loss = self.loss_fn(results['logits'], results['labels'], results)
                 logger.log_batch(Y_hat, label, Y_prob, loss)
         
-        # 在验证结束时计算AUC损失
+        # Calculate AUC loss at validation end
         if hasattr(model, 'group_loss_fn') and hasattr(model, 'group_logits') and model.group_logits:
             results['group_loss'] = model.group_loss_fn(results)
             logger.batch_log['loss'] += results['group_loss']
@@ -929,7 +941,7 @@ class Trainer:
 
         if early_stopping:
             assert self.results_dir
-            # 根据配置的 metric 选择使用的指标
+            # Select metric to use based on configured metric
             metric_name = getattr(early_stopping, 'metric', 'auc')
             if metric_name == 'loss':
                 score = val_loss
@@ -938,9 +950,9 @@ class Trainer:
             elif metric_name == 'acc' or metric_name == 'accuracy':
                 score = val_acc
             else:
-                # 默认使用 auc
+                # Default to auc
                 score = auc
-                print(f"⚠️ 警告: 未知的早停指标 '{metric_name}'，使用默认值 'auc'")
+                print(f"⚠️ Warning: Unknown early stopping metric '{metric_name}', using default 'auc'")
             
             early_stopping(epoch, score, model, 
                          ckpt_name=os.path.join(self.results_dir, "s_{}_checkpoint.pt".format(cur)))
@@ -953,17 +965,17 @@ class Trainer:
 
     def _evaluate_model(self, loader: DataLoader, model: nn.Module, drop_prob: Optional[float] = None) -> Tuple[Dict, float, float, Logger]:
         """
-        模型评估总结
+        Model evaluation summary
         
         Args:
-            loader: 数据加载器
-            model: 模型
-            drop_prob: 模态丢弃概率（0.0-1.0），在 forward 时传入模型
+            loader: Data loader
+            model: Model
+            drop_prob: Modality dropout probability (0.0-1.0), passed to model during forward
         """
         model.eval()
         logger = Logger(n_classes=self.model_config['n_classes'])
 
-        # 重置模型的group_logits和group_labels，确保测试时从干净状态开始
+        # Reset model's group_logits and group_labels to ensure testing starts from clean state
         if hasattr(model, 'group_logits'):
             model.group_logits = []
         if hasattr(model, 'group_labels'):
@@ -971,7 +983,7 @@ class Trainer:
 
         dataset_ref = loader.dataset
         case_ids_list: List[str]
-        if hasattr(dataset_ref, 'case_ids'): # 直接数据集（拥有 case_ids 属性）
+        if hasattr(dataset_ref, 'case_ids'): # Direct dataset (has case_ids attribute)
             base = dataset_ref.case_ids
             case_ids_list = list(base) if not isinstance(base, list) else base
         elif hasattr(dataset_ref, 'dataset'):
@@ -986,7 +998,7 @@ class Trainer:
                 data[channel] = data[channel].to(device)
             case_id = case_ids_list[batch_idx]
             with torch.inference_mode():
-                # 传入 drop_prob 参数
+                # Pass drop_prob parameter
                 if drop_prob is not None:
                     results = model(data, label, drop_prob=drop_prob)
                 else:
@@ -1000,7 +1012,7 @@ class Trainer:
             
             patient_results.update({case_id: {'case_id': np.array(case_id), 'prob': Y_prob.cpu().numpy(), 'label': label.item()}})
         
-        # 在测试结束时计算AUC损失
+        # Calculate AUC loss at test end
         if hasattr(model, 'group_loss_fn') and hasattr(model, 'group_logits') and model.group_logits:
             results['group_loss'] = model.group_loss_fn(results)
             logger.batch_log['loss'] += results['group_loss']
@@ -1035,83 +1047,83 @@ class Trainer:
                       checkpoint_path: str,
                       drop_prob: Optional[float] = None) -> Tuple[Dict, float, Optional[float], float, Optional[float]]:
         """
-        仅评测接口：加载指定checkpoint，在给定datasets的测试集上评测。
+        Evaluation-only interface: Load specified checkpoint, evaluate on test set of given datasets.
 
         Args:
-            datasets: (train_dataset, val_dataset, test_dataset) 元组，测试集将被用于评测
-            fold_idx: 当前fold索引（用于日志打印/兼容接口）
-            checkpoint_path: 模型权重路径（推荐为 train_fold 保存的 s_{fold}_checkpoint.pt）
-            drop_prob: 模态丢弃概率（0.0-1.0），在 forward 时传入模型
+            datasets: (train_dataset, val_dataset, test_dataset) tuple, test set will be used for evaluation
+            fold_idx: Current fold index (for logging/compatibility interface)
+            checkpoint_path: Model weights path (recommended: s_{fold}_checkpoint.pt saved by train_fold)
+            drop_prob: Modality dropout probability (0.0-1.0), passed to model during forward
 
         Returns:
-            (results_dict, test_auc, None, test_acc, None) 与 train_fold 结果形式对齐（验证指标置为 None）
+            (results_dict, test_auc, None, test_acc, None) aligned with train_fold results format (validation metrics set to None)
         """
         print(f"\n[Evaluate] Fold {fold_idx} | checkpoint: {checkpoint_path}")
 
-        # 每次评测都重新初始化模型（不复用之前的模型状态）
+        # Re-initialize model for each evaluation (don't reuse previous model state)
         model = self._init_model()
-        print(f"🔧 创建新模型实例，id={id(model)}")
-        self.loss_fn = model.loss_fn  # 更新 loss_fn 为当前模型的
+        print(f"🔧 Creating new model instance, id={id(model)}")
+        self.loss_fn = model.loss_fn  # Update loss_fn to current model's
         
-        # 加载checkpoint（与训练时的load方式一致）
+        # Load checkpoint (consistent with training load method)
         state = torch.load(checkpoint_path, map_location=device)
-        print(f"📦 checkpoint加载成功，state_dict keys数量: {len(state.keys())}")
+        print(f"📦 Checkpoint loaded successfully, state_dict keys count: {len(state.keys())}")
         
         if hasattr(model, 'transfer_layer') and hasattr(model, 'create_transfer_layer'):
-            # 从checkpoint中找到所有transfer_layer的通道
+            # Find all transfer_layer channels from checkpoint
             transfer_layer_channels = {}
             for key in state.keys():
                 if 'transfer_layer.' in key:
-                    # 提取通道名和权重类型，例如 "transfer_layer.clinical=val.weight" -> ("clinical=val", "weight")
+                    # Extract channel name and weight type, e.g., "transfer_layer.clinical=val.weight" -> ("clinical=val", "weight")
                     parts = key.split('.')
                     if len(parts) >= 3:
-                        channel_name = parts[1]  # 例如 "clinical=val"
+                        channel_name = parts[1]  # e.g., "clinical=val"
                         weight_type = parts[2]  # "weight" 或 "bias"
                         
                         if channel_name not in transfer_layer_channels:
                             transfer_layer_channels[channel_name] = {}
                         transfer_layer_channels[channel_name][weight_type] = state[key]
             
-            # 根据checkpoint中的权重创建对应的transfer_layer
+            # Create corresponding transfer_layer based on weights in checkpoint
             if hasattr(model, 'output_dim'):
                 output_dim = model.output_dim
-                print(f"🔧 预创建 {len(transfer_layer_channels)} 个transfer_layer以匹配checkpoint...")
+                print(f"🔧 Pre-creating {len(transfer_layer_channels)} transfer_layers to match checkpoint...")
                 for channel_name, weights in transfer_layer_channels.items():
                     if channel_name not in model.transfer_layer:
-                        # 从weight的形状推断input_dim: weight形状是 [output_dim, input_dim]
+                        # Infer input_dim from weight shape: weight shape is [output_dim, input_dim]
                         if 'weight' in weights:
                             weight_tensor = weights['weight']
                             if len(weight_tensor.shape) == 2:
-                                input_dim = weight_tensor.shape[1]  # 第二维是input_dim
-                                # 创建transfer_layer
+                                input_dim = weight_tensor.shape[1]  # Second dimension is input_dim
+                                # Create transfer_layer
                                 transfer_layer = model.create_transfer_layer(input_dim)
                                 model.transfer_layer[channel_name] = transfer_layer
-                                print(f"   ✅ 创建 transfer_layer.{channel_name} (input_dim={input_dim}, output_dim={output_dim})")
+                                print(f"   ✅ Created transfer_layer.{channel_name} (input_dim={input_dim}, output_dim={output_dim})")
                             else:
-                                print(f"   ⚠️ 无法推断 {channel_name} 的input_dim: weight形状异常 {weight_tensor.shape}")
+                                print(f"   ⚠️ Cannot infer input_dim for {channel_name}: abnormal weight shape {weight_tensor.shape}")
                         else:
-                            print(f"   ⚠️ checkpoint中缺少 {channel_name}.weight，无法创建transfer_layer")
+                            print(f"   ⚠️ Missing {channel_name}.weight in checkpoint, cannot create transfer_layer")
         
-        # 分析checkpoint中的权重类型
+        # Analyze weight types in checkpoint
         transfer_layer_keys = [k for k in state.keys() if 'transfer_layer.' in k]
         core_keys = [k for k in state.keys() if 'transfer_layer.' not in k]
         
-        print(f"📊 checkpoint权重分析:")
-        print(f"   核心权重: {len(core_keys)} 个")
-        print(f"   transfer_layer权重: {len(transfer_layer_keys)} 个")
+        print(f"📊 Checkpoint weights analysis:")
+        print(f"   Core weights: {len(core_keys)} items")
+        print(f"   Transfer_layer weights: {len(transfer_layer_keys)} items")
         
-        # 现在所有需要的transfer_layer都已创建，尝试使用strict=True确保完全匹配
-        # 如果还有不匹配，再降级到strict=False
+        # Now all required transfer_layers are created, try strict=True to ensure perfect match
+        # If there are still mismatches, fall back to strict=False
         try:
             missing_keys, unexpected_keys = model.load_state_dict(state, strict=True)
-            print(f"✅ 使用strict=True成功加载所有权重（完全匹配）")
+            print(f"✅ Successfully loaded all weights using strict=True (perfect match)")
         except RuntimeError as e:
-            # 如果strict=True失败，使用strict=False但会详细报告
-            print(f"⚠️ strict=True加载失败: {e}")
-            print(f"🔧 降级到strict=False加载...")
+            # If strict=True fails, use strict=False but report in detail
+            print(f"⚠️ strict=True loading failed: {e}")
+            print(f"🔧 Falling back to strict=False loading...")
             missing_keys, unexpected_keys = model.load_state_dict(state, strict=False)
         
-        # 检查核心权重是否都加载了
+        # Check if all core weights are loaded
         model_core_keys = set([k for k in model.state_dict().keys() if 'transfer_layer.' not in k])
         checkpoint_core_keys = set(core_keys)
         loaded_core_keys = model_core_keys & checkpoint_core_keys
@@ -1120,39 +1132,39 @@ class Trainer:
             missing_core = [k for k in missing_keys if 'transfer_layer.' not in k]
             missing_transfer = [k for k in missing_keys if 'transfer_layer.' in k]
             if missing_core:
-                print(f"⚠️ 警告：缺少以下核心权重（可能导致性能下降）: {len(missing_core)} 个")
+                print(f"⚠️ Warning: Missing core weights (may cause performance degradation): {len(missing_core)} items")
                 for key in missing_core[:5]:
                     print(f"    - {key}")
                 if len(missing_core) > 5:
                     print(f"    ... 还有 {len(missing_core) - 5} 个")
             if missing_transfer:
-                print(f"ℹ️ 信息：缺少以下transfer_layer权重（将在forward时动态创建）: {len(missing_transfer)} 个")
+                print(f"ℹ️ Info: Missing transfer_layer weights (will be created dynamically during forward): {len(missing_transfer)} items")
         
         if unexpected_keys:
             unexpected_transfer = [k for k in unexpected_keys if 'transfer_layer.' in k]
             unexpected_other = [k for k in unexpected_keys if 'transfer_layer.' not in k]
             if unexpected_transfer:
-                print(f"ℹ️ 信息：checkpoint中有额外的transfer_layer权重（已忽略，不影响评测）: {len(unexpected_transfer)} 个")
+                print(f"ℹ️ Info: Extra transfer_layer weights in checkpoint (ignored, does not affect evaluation): {len(unexpected_transfer)} items")
             if unexpected_other:
-                print(f"⚠️ 警告：checkpoint中有意外的其他权重: {len(unexpected_other)} 个")
+                print(f"⚠️ Warning: Unexpected other weights in checkpoint: {len(unexpected_other)} items")
                 for key in unexpected_other[:5]:
                     print(f"    - {key}")
         
-        # 验证核心权重加载情况
-        print(f"✅ 核心权重加载: {len(loaded_core_keys)}/{len(checkpoint_core_keys)} 个")
+        # Validate core weights loading status
+        print(f"✅ Core weights loaded: {len(loaded_core_keys)}/{len(checkpoint_core_keys)} items")
         if len(loaded_core_keys) == len(checkpoint_core_keys):
-            print(f"✅ 所有核心权重已成功加载")
+            print(f"✅ All core weights successfully loaded")
         else:
-            print(f"⚠️ 警告：部分核心权重未加载: {len(checkpoint_core_keys) - len(loaded_core_keys)} 个")
+            print(f"⚠️ Warning: Some core weights not loaded: {len(checkpoint_core_keys) - len(loaded_core_keys)} items")
         
-        # 设置为评估模式
+        # Set to evaluation mode
         model.eval()
 
-        # 仅构造测试集数据加载器
+        # Only construct test set data loader
         _, _, test_split = datasets
         test_loader = get_split_loader(test_split, training=False, weighted=False, batch_size=1)
 
-        # 评测（传入 drop_prob）
+        # Evaluate (pass drop_prob)
         results_dict, test_acc, test_auc, _ = self._evaluate_model(test_loader, model, drop_prob=drop_prob)
         return results_dict, float(test_auc), None, float(test_acc), None
 
@@ -1162,12 +1174,12 @@ class Trainer:
                                  checkpoint_path: str,
                                  drop_prob: Optional[float] = None) -> Tuple[Dict, float, Optional[float], float, Optional[float]]:
         """
-        兼容名：直接调用 evaluate_fold。
+        Compatible name: directly calls evaluate_fold.
         
         Args:
-            datasets: 数据集元组
-            fold_idx: fold索引
-            checkpoint_path: checkpoint路径
-            drop_prob: 模态丢弃概率（0.0-1.0），在 forward 时传入模型
+            datasets: Dataset tuple
+            fold_idx: Fold index
+            checkpoint_path: Checkpoint path
+            drop_prob: Modality dropout probability (0.0-1.0), passed to model during forward
         """
         return self.evaluate_fold(datasets=datasets, fold_idx=fold_idx, checkpoint_path=checkpoint_path, drop_prob=drop_prob)
