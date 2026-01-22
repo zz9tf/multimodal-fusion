@@ -34,11 +34,11 @@ class SVDPool(ClamMLP):
         self._init_align_model()
         self.pooling_strategy = config.get('pooling_strategy', 'mean')
         if self.pooling_strategy == 'mean':
-            self.pooling_fn = torch.mean
+            self.pooling_fn = lambda x, dim: torch.mean(x, dim=dim)
         elif self.pooling_strategy == 'max':
-            self.pooling_fn = torch.max
+            self.pooling_fn = lambda x, dim: torch.max(x, dim=dim).values
         elif self.pooling_strategy == 'sum':
-            self.pooling_fn = torch.sum
+            self.pooling_fn = lambda x, dim: torch.sum(x, dim=dim)
         else:
             raise ValueError(f"Unsupported pooling strategy: {self.pooling_strategy}")
         
