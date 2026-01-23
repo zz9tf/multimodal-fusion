@@ -11,7 +11,7 @@ CUDA_DEVICE=0
 export CUDA_VISIBLE_DEVICES="$CUDA_DEVICE"
 
 # Data-related parameters
-DATA_ROOT_DIR="/home/zheng/zheng/public/1"
+DATA_ROOT_DIR="/home/zheng/zheng/public/2"
 RESULTS_DIR="/home/zheng/zheng/multimodal-fusion/downstream_survival/results"
 CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv"
 TARGET_CHANNELS="blood"

@@ -300,4 +300,3 @@ class CLAM(BaseModel):
         Print detailed information
         """
         return f"total_inst_loss: {result['total_inst_loss']:.4f}, base_weight: {self.base_weight:.4f}"
-
