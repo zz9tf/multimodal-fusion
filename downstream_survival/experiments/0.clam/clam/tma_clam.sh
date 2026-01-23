@@ -3,23 +3,27 @@
 # =============================================================================
 # Environment Setup
 # =============================================================================
-source ~/zheng/miniconda3/etc/profile.d/conda.sh
+source /home/zz/miniconda3/etc/profile.d/conda.sh
 conda activate multimodal-fusion
-cd /home/zheng/zheng/multimodal-fusion/downstream_survival
+cd /home/zz/zheng/multimodal-fusion/downstream_survival
 
-CUDA_DEVICE=1
+# Accept random seed as command line argument
+SEED=${1:-5678}
+
+# Device and public directory assignment
+CUDA_DEVICE=0
+PUBLIC_DIR=1
+
 export CUDA_VISIBLE_DEVICES="$CUDA_DEVICE"
 
 # Data-related parameters
-DATA_ROOT_DIR="/home/zheng/zheng/public/2"
-# DATA_ROOT_DIR="/home/zheng/zheng/public/hancock_data/WSI_UNI_encodings/WSI_PrimaryTumor"
-RESULTS_DIR="/home/zheng/zheng/multimodal-fusion/downstream_survival/results"
-CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv"
+DATA_ROOT_DIR="/home/zz/zheng/public/$PUBLIC_DIR"
+RESULTS_DIR="/home/zz/zheng/multimodal-fusion/downstream_survival/results"
+CSV_PATH="/home/zz/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv"
 TARGET_CHANNELS="tma"
 
 # Experiment & Training parameters
 EXP_CODE="tma_clam"
-SEED=5678
 K_FOLDS=10
 SPLIT_MODE="random"
 MAX_EPOCHS=200

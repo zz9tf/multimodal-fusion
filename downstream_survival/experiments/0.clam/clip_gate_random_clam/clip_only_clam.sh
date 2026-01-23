@@ -6,22 +6,27 @@
 # =============================================================================
 
 # Environment Setup
-source ~/zheng/miniconda3/etc/profile.d/conda.sh
+source /home/zz/miniconda3/etc/profile.d/conda.sh
 conda activate multimodal-fusion
-cd /home/zheng/zheng/multimodal-fusion/downstream_survival
+cd /home/zz/zheng/multimodal-fusion/downstream_survival
 
+# Accept random seed as command line argument
+SEED=${1:-5678}
+
+# Device and public directory assignment
 CUDA_DEVICE=1
+PUBLIC_DIR=2
+
 export CUDA_VISIBLE_DEVICES="$CUDA_DEVICE"
 
 # Data-related parameters
-DATA_ROOT_DIR="/home/zheng/zheng/public/2"
-RESULTS_DIR="/home/zheng/zheng/multimodal-fusion/downstream_survival/results"
-CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv"
+DATA_ROOT_DIR="/home/zz/zheng/public/${PUBLIC_DIR}"
+RESULTS_DIR="/home/zz/zheng/multimodal-fusion/downstream_survival/results"
+CSV_PATH="/home/zz/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv"
 TARGET_CHANNELS="wsi tma clinical pathological blood icd tma_cell_density"
 
 # Experiment & Training parameters
 EXP_CODE="clip_only_clam"
-SEED=5678
 K_FOLDS=10
 SPLIT_MODE="random"
 MAX_EPOCHS=200

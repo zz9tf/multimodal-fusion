@@ -637,7 +637,7 @@ def main(args, configs):
         alignment_model_path=experiment_config['alignment_model_path'],
         device=device,
         print_info=True,
-        preload_all=True,
+        preload_all=False,
     )
     
     # Create results directory

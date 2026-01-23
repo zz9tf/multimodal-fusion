@@ -8,25 +8,28 @@ set -euo pipefail
 # =============================================================================
 # Environment Setup
 # =============================================================================
-source ~/zheng/miniconda3/etc/profile.d/conda.sh
+source /home/zz/miniconda3/etc/profile.d/conda.sh
 conda activate multimodal-fusion
-cd /home/zheng/zheng/multimodal-fusion/downstream_survival
+cd /home/zz/zheng/multimodal-fusion/downstream_survival
 
+# Accept random seed as command line argument
+SEED=${1:-5678}
+
+# Device and public directory assignment
 CUDA_DEVICE=0
 export CUDA_VISIBLE_DEVICES="$CUDA_DEVICE"
 
 # =============================================================================
 # Data-related parameters
 # =============================================================================
-DATA_ROOT_DIR="/home/zheng/zheng/mini2/hancock_data/WSI_UNI_encodings/WSI_PrimaryTumor"
-RESULTS_DIR="/home/zheng/zheng/multimodal-fusion/downstream_survival/results"
-CSV_PATH="/home/zheng/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv"
+DATA_ROOT_DIR="/home/zz/zheng/mini2/hancock_data/WSI_UNI_encodings/WSI_PrimaryTumor"
+RESULTS_DIR="/home/zz/zheng/multimodal-fusion/downstream_survival/results"
+CSV_PATH="/home/zz/zheng/multimodal-fusion/downstream_survival/dataset_csv/survival_dataset.csv"
 TARGET_CHANNELS="wsi tma clinical pathological blood icd tma_cell_density"
 
 # =============================================================================
 # Experiment & Training parameters（除 output_dim 外与基线一致）
 # =============================================================================
-SEED=5678
 K_FOLDS=10
 MAX_EPOCHS=200
 LEARNING_RATE=1e-4
